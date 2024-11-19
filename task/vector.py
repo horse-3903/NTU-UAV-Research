@@ -1,7 +1,7 @@
-import numpy as np
+from __future__ import annotations
 
 import math
-from __future__ import annotations
+import numpy as np
 
 class Vector3D:
     def __init__(self, x, y, z):

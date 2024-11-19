@@ -1,23 +1,28 @@
-import sys
-from tellopy import Tello
+from drone import TelloDrone
 
-from task.depth_model import estimate_depth
+import rospy
+from nlink_parser.msg import LinktrackNode1, LinktrackNodeframe1
 
-drone = Tello()
+tello = TelloDrone()
 
-def shutdown():
-    drone.land()
-    drone.quit()
-    sys.exit(0)
-    
-def handle_movement():
-    pass
+def linktrack_callback(data):
+    # to assess node control (drone vs target) later
+    node: LinktrackNode1 = data.nodes[0]
+    pos_arr = node.pos_3d
+
+    tello.task_handler(pos_arr=pos_arr)
 
 def main():
-    pass
+    rospy.init_node('drone_subscriber', anonymous=True)
+
+    rospy.Subscriber('/nlink_linktrack_nodeframe1', LinktrackNodeframe1, linktrack_callback, queue_size=20)
+
+    rospy.spin()
 
 if __name__ == "__main__":
     try:
         main()
-    except:
-        shutdown()
+    except Exception as e:
+        print(e)
+    finally:
+        tello.shutdown()
