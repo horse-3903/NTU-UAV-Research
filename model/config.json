@@ -1,0 +1,114 @@
+{
+  "add_projection": false,
+  "architectures": [
+    "ZoeDepthForDepthEstimation"
+  ],
+  "attractor_alpha": 1000,
+  "attractor_gamma": 2,
+  "attractor_kind": "mean",
+  "backbone": null,
+  "backbone_config": {
+    "hidden_size": 1024,
+    "image_size": 384,
+    "intermediate_size": 4096,
+    "model_type": "beit",
+    "num_attention_heads": 16,
+    "num_hidden_layers": 24,
+    "out_features": [
+      "stage6",
+      "stage12",
+      "stage18",
+      "stage24"
+    ],
+    "out_indices": [
+      6,
+      12,
+      18,
+      24
+    ],
+    "reshape_hidden_states": false,
+    "stage_names": [
+      "stem",
+      "stage1",
+      "stage2",
+      "stage3",
+      "stage4",
+      "stage5",
+      "stage6",
+      "stage7",
+      "stage8",
+      "stage9",
+      "stage10",
+      "stage11",
+      "stage12",
+      "stage13",
+      "stage14",
+      "stage15",
+      "stage16",
+      "stage17",
+      "stage18",
+      "stage19",
+      "stage20",
+      "stage21",
+      "stage22",
+      "stage23",
+      "stage24"
+    ],
+    "use_relative_position_bias": true
+  },
+  "backbone_hidden_size": 1024,
+  "batch_norm_eps": 1e-05,
+  "bin_centers_type": "softplus",
+  "bin_configurations": [
+    {
+      "max_depth": 10.0,
+      "min_depth": 0.001,
+      "n_bins": 64,
+      "name": "nyu"
+    },
+    {
+      "max_depth": 80.0,
+      "min_depth": 0.001,
+      "n_bins": 64,
+      "name": "kitti"
+    }
+  ],
+  "bin_embedding_dim": 128,
+  "bottleneck_features": 256,
+  "fusion_hidden_size": 256,
+  "head_in_index": -1,
+  "hidden_act": "gelu",
+  "initializer_range": 0.02,
+  "max_temp": 50.0,
+  "min_temp": 0.0212,
+  "model_type": "zoedepth",
+  "neck_hidden_sizes": [
+    256,
+    512,
+    1024,
+    1024
+  ],
+  "num_attractors": [
+    16,
+    8,
+    4,
+    1
+  ],
+  "num_patch_transformer_layers": 4,
+  "num_relative_features": 32,
+  "patch_transformer_hidden_size": 128,
+  "patch_transformer_intermediate_size": 1024,
+  "patch_transformer_num_attention_heads": 4,
+  "readout_type": "project",
+  "reassemble_factors": [
+    4,
+    2,
+    1,
+    0.5
+  ],
+  "torch_dtype": "float32",
+  "transformers_version": "4.42.0.dev0",
+  "use_batch_norm_in_fusion_residual": false,
+  "use_bias_in_fusion_residual": null,
+  "use_pretrained_backbone": false
+}
