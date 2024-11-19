@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
-model = "model/"
+model = "model/zoedepth-nyu-kitti"
 
 # Log the model and processor loading
 logger.info("Loading model and processor...")

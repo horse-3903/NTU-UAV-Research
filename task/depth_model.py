@@ -5,7 +5,7 @@ from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 
 import torch
 
-model_name = "model/"
+model_name = "model/zoedepth-nyu-kitti"
 image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
 depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
 
