@@ -1,7 +1,7 @@
 import sys
 from tellopy import Tello
 
-from task.depth_model_util import estimate_depth
+from task.depth_model import estimate_depth
 
 drone = Tello()
 

@@ -4,13 +4,12 @@ import rospy
 from nlink_parser.msg import LinktrackNodeframe1
 
 # Callback function to handle the incoming PoseStamped messages
-def linktrack_callback(msg:LinktrackNodeframe1):
+def linktrack_callback(msg: LinktrackNodeframe1):
     # Extract position data from the message
+    node = msg.nodes[0]
+    pos = node.pos_3d
 
-    # Print the received position
-    # rospy.loginfo(f"Drone Position - x: {x}, y: {y}, z: {z}")
-    rospy.loginfo(msg)
-    rospy.sleep(2)
+    rospy.loginfo(f"Drone Position - x: {pos.x}, y: {pos.y}, z: {pos.z}")
 
 def main():
     # Initialize the ROS node
