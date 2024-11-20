@@ -47,10 +47,13 @@ class Vector3D:
     def is_origin(self) -> bool:
         return self == Vector3D(0, 0, 0)
 
+    def __str__(self) -> str:
+        return f"x={self.x}, y={self.y}, z={self.z}"
+        
     def __repr__(self) -> str:
         return f"Vector3D({self.x}, {self.y}, {self.z})"
     
-    @classmethod
+    @staticmethod
     def from_arr(arr) -> Vector3D:
         return Vector3D(arr[0], arr[1], arr[2])
     

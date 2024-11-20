@@ -19,11 +19,10 @@ cleanup() {
 trap cleanup SIGINT
 
 # Check if roscore is running
-if ! pgrep -x "roscore" > /dev/null; then
-  # If roscore is not running, start roscore in the background
-  roscore &  
-  sleep 2  # Wait for roscore to start
-fi
+# if ! pgrep -x "rosmaster" > /dev/null; then
+#   # If roscore is not running, start roscore in the background
+#   gnome-terminal -- /bin/bash -c "roscore;"
+# fi
 
 # Run your code with proper background handling
 roslaunch nlink_parser linktrack.launch
