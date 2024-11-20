@@ -54,3 +54,4 @@ CATKIN_IGNORE
 CMakeLists.txt
 package.xml
 model/
+vid/
