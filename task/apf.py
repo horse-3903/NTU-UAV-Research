@@ -1,43 +1,44 @@
+from typing import List, Tuple
 from vector import Vector3D
-import numpy as np
 
-def apf(current_pos: Vector3D, target_pos: Vector3D, attraction_coeff: float = 1.0) -> tuple:
-    """
-    Artificial Potential Fields for 3D, using Vector3D class.
+def apf(
+    current_pos: Vector3D,
+    target_pos: Vector3D,
+    obstacles: List[Tuple[Vector3D, float]],
+    attraction_coeff: float = 1.0,
+    repulsion_coeff: float = 1.0,
+    influence_distance: float = 5.0
+) -> Tuple[Vector3D, Vector3D, Vector3D]:
     
-    current_pos: Current position as a Vector3D
-    target_pos: Target position as a Vector3D
-    attraction_coeff: Attraction coefficient
-    
-    Returns:
-    x_vel: Velocity in the x direction
-    y_vel: Velocity in the y direction
-    z_vel: Velocity in the z direction
-    """
-    # Calculate the difference vector
+    # Attractive force calculation
     delta = target_pos - current_pos
-    
-    # Calculate the attractive force angle in the XY plane
-    distance_xy = np.sqrt(delta.x**2 + delta.y**2)
-    if distance_xy > 0:
-        angle_attract_xy = np.arctan2(delta.y, delta.x)
-    else:
-        angle_attract_xy = 0
-    
-    # Calculate the attractive force angle in the Z direction (vertical angle)
-    angle_attract_z = np.arctan2(delta.z, distance_xy) if distance_xy != 0 else np.pi / 2
-    
-    # Calculate the attractive force magnitude
     distance_goal = delta.magnitude()
-    force_attract = Vector3D(
-        attraction_coeff * distance_goal * np.cos(angle_attract_z) * np.cos(angle_attract_xy),
-        attraction_coeff * distance_goal * np.cos(angle_attract_z) * np.sin(angle_attract_xy),
-        attraction_coeff * distance_goal * np.sin(angle_attract_z)
-    )
-    
-    # Calculate the velocities based on the force direction
-    x_vel = force_attract.x / distance_goal  # Normalize by the distance
-    y_vel = force_attract.y / distance_goal
-    z_vel = force_attract.z / distance_goal
-    
-    return x_vel, y_vel, z_vel
+
+    if distance_goal == 0:
+        attractive_force = Vector3D(0, 0, 0)
+    else:
+        attractive_force = Vector3D(
+            attraction_coeff * distance_goal * delta.x / distance_goal,
+            attraction_coeff * distance_goal * delta.y / distance_goal,
+            attraction_coeff * distance_goal * delta.z / distance_goal
+        )
+
+    # Repulsive force calculation
+    repulsive_force = Vector3D(0, 0, 0)
+    for obs, radius in obstacles:
+        delta_obs = current_pos - obs
+        distance_obs = delta_obs.magnitude() - radius
+
+        if 0 < distance_obs <= influence_distance:
+            # Scale factor for the repulsive force
+            repulsion_strength = repulsion_coeff * (1 / distance_obs - 1 / influence_distance) / (distance_obs**2)
+            repulsive_force += Vector3D(
+                repulsion_strength * delta_obs.x / delta_obs.magnitude(),
+                repulsion_strength * delta_obs.y / delta_obs.magnitude(),
+                repulsion_strength * delta_obs.z / delta_obs.magnitude()
+            )
+
+    # Total force calculation
+    total_force = attractive_force + repulsive_force
+
+    return total_force, attractive_force, repulsive_force

@@ -38,7 +38,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(e)
         tello.shutdown(error=True, reason=e)
     else:
         tello.shutdown(error=False)

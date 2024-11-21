@@ -5,12 +5,14 @@ import time
 from datetime import datetime
 
 import logging
+import av.container
 from log import ColourFormatter
 
 import cv2
 import threading
 
-import av.container
+import av
+
 import rospy
 
 from tellopy import Tello
@@ -18,9 +20,9 @@ from tellopy import Tello
 import numpy as np
 from vector import Vector3D
 
-import av
-
 from apf import apf
+
+from typing import List, Tuple, Callable
 
 x_bounds = (-0.75, 6.75)
 y_bounds = (0.5, 4.5)
@@ -32,45 +34,45 @@ class TelloDrone:
     def __init__(self) -> None:
         logging.info("Initialising TelloDrone")
         
-        self.cur_pos = Vector3D(0, 0, 0)
-        self.target_pos = Vector3D(0, 0, 0)
+        self.cur_pos: Vector3D = Vector3D(0, 0, 0)
+        self.target_pos: Vector3D = Vector3D(0, 0, 0)
         
-        self.orient_running = False
+        self.orient_running: bool = False
         
-        self.altitude = 0
-        self.speed = 0
-        self.battery = 0
-        self.wifi = 0
-        self.cam = 0
-        self.mode = 0
+        self.altitude: float = 0
+        self.speed: float = 0
+        self.battery: float = 0
+        self.wifi: float = 0
+        self.cam: float = 0
+        self.mode: int = 0
         
-        self.active_task = lambda: None
+        self.active_task: Callable = None
         
-        self.drone = Tello()
-        self.running = False
+        self.drone: Tello = Tello()
+        self.running: bool = False
         
-        self.waypts = []
-        self.cur_waypt_idx = -1
+        self.waypts: List[Vector3D] = []
+        self.cur_waypt_idx: int = -1
         
-        self.container = None
-        self.cur_frame = None
-        
-        self.init_time = datetime.now()
-        self.cur_time = None
+        self.init_time: datetime = datetime.now()
+        self.cur_time: datetime = None
         
         log_dir = f"logs/log-{self.init_time.strftime('%d-%m-%Y_%H:%M:%S')}/"
         os.makedirs(log_dir, exist_ok=True)
         
-        self.log_info_file = f"{log_dir}/log-info.log"
-        self.log_pos_file = f"{log_dir}/log-pos.log"
+        self.log_info_file: os.PathLike = f"{log_dir}/log-info.log"
+        self.log_pos_file: os.PathLike = f"{log_dir}/log-pos.log"
         open(self.log_pos_file, "x")
         
-        self.vid_file = f"vid/vid-{self.init_time.strftime('%d-%m-%Y_%H:%M:%S')}"
-        self.video_thread = None
-        self.stop_video_thread_event = threading.Event()
-        self.video_writer = None
+        self.vid_file: os.PathLike = f"vid/vid-{self.init_time.strftime('%d-%m-%Y_%H:%M:%S')}"
+        self.video_thread: bool = None
+        self.stop_video_thread_event: threading.Event = threading.Event()
         
-    def start_log(self):
+        self.container: av.container.InputContainer = None
+        self.video_writer: cv2.VideoWriter = None
+        self.active_vid_task: Callable = None
+        
+    def start_log(self) -> None:
         stream_handler = logging.StreamHandler()
         stream_handler.setLevel(logging.NOTSET)
         stream_handler.setFormatter(ColourFormatter('%(asctime)s - %(levelname)s - %(message)s'))
@@ -84,18 +86,18 @@ class TelloDrone:
         logger.addHandler(file_handler)
         logger.setLevel(logging.NOTSET)
         
-    def flight_data_callback(self, event, sender, data):
+    def flight_data_callback(self, event, sender, data) -> None:
         data = str(data).split(" | ")
         data[3] = data[3].replace("  ", " ")
         data = [d.split(": ") for d in data]
         data = {d[0]: d[1] for d in data}
         
-        self.altitude = data["ALT"]
-        self.speed = data["SPD"]
-        self.battery = data["BAT"]
-        self.wifi = data["WIFI"]
-        self.cam = data["CAM"]
-        self.mode = data["MODE"]
+        self.altitude = float(data["ALT"])
+        self.speed = float(data["SPD"])
+        self.battery = float(data["BAT"])
+        self.wifi = float(data["WIFI"])
+        self.cam = float(data["CAM"])
+        self.mode = float(data["MODE"])
         
     def set_target_pos(self, target_pos: Vector3D) -> None:
         logging.info(f"Setting target position: {target_pos}")
@@ -144,7 +146,6 @@ class TelloDrone:
             self.shutdown(error=True, reason="Target position not set")
 
         logging.info("Starting up the TelloDrone")
-        self.running = True
 
         logging.info("Attempting to connect to the drone")
         self.drone.connect()
@@ -155,17 +156,14 @@ class TelloDrone:
         
         self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.flight_data_callback)
         
-        time.sleep(2)
-
         logging.info("Drone connected successfully")
         
         self.drone.start_video()
-
-        while self.container is None :
+        
+        while self.container is None:
             logging.info("Opening video stream from the drone")
             self.container = av.open(self.drone.get_video_stream())
             
-        self.start_video_thread()
 
         logging.info("Taking off")
         self.drone.takeoff()
@@ -173,28 +171,31 @@ class TelloDrone:
         
         self.start_pos = self.cur_pos
         self.waypts[0] = self.start_pos
+        
+        self.start_video_thread()
+        
+        self.running = True
 
     def shutdown(self, error=False, reason=None) -> None:
+        if error:
+            logging.error(reason)
         logging.info("Shutting down all processes")
         
-        # Ensure the drone has stopped its movements before quitting
         self.drone.backward(0)
-        time.sleep(1)
-        self.drone.land()
         
-        # Stop video thread if it's running
+        while self.altitude > 0:
+            self.drone.land()
+            time.sleep(1)
+        
         self.stop_video_thread()
 
-        # Allow any background processes or threads to clean up
         logging.info("Waiting for tasks to finish...")
 
         logging.info("Shutting down drone and ROS node")
         
-        # Quit the drone and ROS system
         self.drone.quit()
         rospy.signal_shutdown("Failed" if error else "Objective Completed")
         
-        # Exit with the appropriate status
         if error:
             logging.critical(reason)
         else:
@@ -203,7 +204,6 @@ class TelloDrone:
         sys.exit(0)
 
     def check_bounds(self, x_bounds: tuple, y_bounds: tuple, z_bounds: tuple) -> None:
-        # logging.debug(f"Checking bounds: x={x_bounds}, y={y_bounds}, z={z_bounds}")
         inst_pos = self.cur_pos
         x_within_bounds = (x_bounds[0] <= inst_pos.x and inst_pos.x <= x_bounds[1])
         y_within_bounds = (y_bounds[0] <= inst_pos.y and inst_pos.y <= y_bounds[1])
@@ -218,25 +218,32 @@ class TelloDrone:
         if not z_within_bounds:
             logging.warning("Drone position-z is out of bounds.")
             self.shutdown(error=True, reason=f"Drone position-z is out of bounds : {self.cur_pos}")
+            
+    def process_frame(self, frame: av.VideoFrame):
+        img = frame.to_ndarray(format='bgr24')                    
+        self.video_writer.write(img)
+        
+        if self.active_vid_task:
+            self.active_vid_task(frame)
     
-    def process_video(self):
+    def process_video(self) -> None:
         logging.info("Processing video frames in thread.")
         
         while not self.stop_video_thread_event.is_set():
             try:
                 for frame in self.container.decode(video=0):
-                    img = frame.to_ndarray(format='bgr24')                    
-                    self.video_writer.write(img)
+                    self.process_frame(frame)
                     
                     if self.stop_video_thread_event.is_set():
                         break
+                    
             except Exception as e:
                 logging.error(f"Error in video processing: {e}")
                 break
 
         logging.info("Exiting video processing thread.")
 
-    def start_video_thread(self):
+    def start_video_thread(self) -> None:
         if self.container is None:
             logging.error("Video stream not initialized. Cannot start video thread.")
             return
@@ -254,7 +261,7 @@ class TelloDrone:
         self.video_thread.start()
         logging.info("Video processing thread started.")
 
-    def stop_video_thread(self):
+    def stop_video_thread(self) -> None:
         if not self.video_thread or not self.video_thread.is_alive():
             logging.warning("No video thread to stop.")
             return
@@ -263,11 +270,6 @@ class TelloDrone:
         self.video_thread.join()
         self.video_writer.release()
         logging.info("Video processing thread stopped, and video file saved.")
-            
-    # def video_handler(self) -> None:
-    #     if not self.running or self.container is None:
-    #         logging.error("TelloDrone has not started running. Call TelloDrone.startup() first.")
-    #         raise Exception("TelloDrone has not started running. Please run TelloDrone.startup() to continue.")
 
     def task_handler(self, pos_arr: list) -> None:
         self.cur_pos = Vector3D.from_arr(pos_arr)
@@ -356,7 +358,7 @@ class TelloDrone:
         logging.debug(f"Current position : {self.cur_pos}")
         logging.debug(f"Target position : {target_waypt}")
 
-    def run_objective(self):
+    def run_objective(self) -> None:
         logging.info("Running objective")
         self.startup()
         
@@ -364,5 +366,5 @@ class TelloDrone:
         
         self.active_task = self.follow_path
         
-        if self.active_task is None:
+        if self.running and self.active_task is None:
             self.shutdown()

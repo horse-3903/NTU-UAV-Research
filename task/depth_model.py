@@ -10,7 +10,6 @@ image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
 depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
 
 def estimate_depth(img: np.ndarray):
-    """Runs depth estimation on the input image and returns a depth map as a numpy array."""
     pil_image = Image.fromarray(img)
     inputs = image_processor.preprocess(images=pil_image, return_tensors="pt")
     
