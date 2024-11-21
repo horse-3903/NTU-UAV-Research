@@ -13,6 +13,8 @@ import threading
 
 import av
 
+import json
+
 import rospy
 
 from tellopy import Tello
@@ -22,11 +24,15 @@ from vector import Vector3D
 
 from apf import apf
 
-from typing import List, Tuple, Callable
+from depth_model import estimate_depth
 
-x_bounds = (-0.75, 6.75)
-y_bounds = (0.5, 4.5)
-z_bounds = (-4.25, -0.75)
+from PIL import Image
+
+from typing import List, Callable
+
+x_bounds = (-0.75, 6.85)
+y_bounds = (0, 4.5)
+z_bounds = (-4.25, 0.0)
 
 logging.basicConfig(level=logging.NOTSET, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -34,6 +40,8 @@ class TelloDrone:
     def __init__(self) -> None:
         logging.info("Initialising TelloDrone")
         
+        self.takeoff_pos: Vector3D = Vector3D(0, 0, 0)
+        self.start_pos: Vector3D = Vector3D(0, 0, 0)
         self.cur_pos: Vector3D = Vector3D(0, 0, 0)
         self.target_pos: Vector3D = Vector3D(0, 0, 0)
         
@@ -57,20 +65,29 @@ class TelloDrone:
         self.init_time: datetime = datetime.now()
         self.cur_time: datetime = None
         
-        log_dir = f"logs/log-{self.init_time.strftime('%d-%m-%Y_%H:%M:%S')}/"
-        os.makedirs(log_dir, exist_ok=True)
+        self.run_name = self.init_time.strftime('%d-%m-%Y_%H:%M:%S')
         
-        self.log_info_file: os.PathLike = f"{log_dir}/log-info.log"
-        self.log_pos_file: os.PathLike = f"{log_dir}/log-pos.log"
+        self.log_dir = f"logs/log-{self.run_name}/"
+        os.makedirs(self.log_dir, exist_ok=True)
+        
+        self.log_info_file: os.PathLike = f"{self.log_dir}/log-info.log"
+        self.log_pos_file: os.PathLike = f"{self.log_dir}/log-pos.log"
         open(self.log_pos_file, "x")
         
-        self.vid_file: os.PathLike = f"vid/vid-{self.init_time.strftime('%d-%m-%Y_%H:%M:%S')}"
-        self.video_thread: bool = None
+        self.vid_file: os.PathLike = f"vid/vid-{self.run_name}"
+        self.video_thread: threading.Thread = None
         self.stop_video_thread_event: threading.Event = threading.Event()
         
         self.container: av.container.InputContainer = None
         self.video_writer: cv2.VideoWriter = None
         self.active_vid_task: Callable = None
+        
+        self.frame_idx = -1
+        
+        os.makedirs(f"img/original/{self.init_time}", exist_ok=True)
+        os.makedirs(f"img/depth/{self.init_time}", exist_ok=True)
+        
+        self.obstacles = []
         
     def start_log(self) -> None:
         stream_handler = logging.StreamHandler()
@@ -99,44 +116,34 @@ class TelloDrone:
         self.cam = float(data["CAM"])
         self.mode = float(data["MODE"])
         
+        if self.battery <= 10:
+            logging.critical(f"Drone battery very low at {self.battery}%")
+            self.shutdown(error=True, reason=f"Insufficient battery at {self.battery}%")
+        elif self.battery <= 20:
+            logging.warning(f"Drone battery low at {self.battery}%")
+        
     def set_target_pos(self, target_pos: Vector3D) -> None:
         logging.info(f"Setting target position: {target_pos}")
         self.target_pos = target_pos
         self.waypts = [None, self.target_pos]
         self.cur_waypt_idx = 0
         
-    def orient_drone(self, threshold=0.25) -> None:
-        logging.info("Orienting the drone to face negative-x")
-        x_diff = 0
-        y_diff = 1
+    def set_obstacles(self, obstacles: list) -> None:
+        self.obstacles.extend(obstacles)
         
-        while y_diff > threshold:
-            start_pos = self.cur_pos
-            self.drone.forward(30)
-            time.sleep(3)
-            end_pos = self.cur_pos
-            
-            pos_diff = end_pos - start_pos
-            x_diff = pos_diff.x
-            y_diff = pos_diff.y
-            
-            logging.debug(f"X-Diff : {x_diff}")
-            logging.debug(f"Y-Diff : {y_diff}")
-            
-            turn_val = 30
-            
-            if x_diff > 0:
-                turn_val += 15
-            elif y_diff <= threshold:
-                return
-            
-            if y_diff > 0:
-                self.drone.clockwise(turn_val)
-            else:
-                self.drone.counter_clockwise(turn_val)
-                
-            time.sleep(0.5)
-            self.drone.clockwise(0)
+    def save_log_config(self) -> None:
+        log_config_dir = f"{self.log_dir}/log-config.json"
+        
+        config = {
+            "takeoff_pos": self.takeoff_pos.to_arr(),
+            "start_pos": self.start_pos.to_arr(),
+            "end_pos": self.cur_pos.to_arr(),
+            "target_pos": self.target_pos.to_arr(),
+            "obstacles": [(obp.to_arr(), obr) for obp, obr in self.obstacles]
+        }
+        
+        with open(log_config_dir, "w+") as f:
+            f.write(json.dumps(config, indent=4))
 
     def startup(self) -> None:
         self.start_log()
@@ -164,30 +171,33 @@ class TelloDrone:
             logging.info("Opening video stream from the drone")
             self.container = av.open(self.drone.get_video_stream())
             
+        self.takeoff_pos = self.cur_pos
 
         logging.info("Taking off")
         self.drone.takeoff()
-        time.sleep(2)
+        
+        self.start_video_thread()
         
         self.start_pos = self.cur_pos
         self.waypts[0] = self.start_pos
-        
-        self.start_video_thread()
         
         self.running = True
 
     def shutdown(self, error=False, reason=None) -> None:
         if error:
             logging.error(reason)
+            
         logging.info("Shutting down all processes")
+        
+        self.stop_video_thread()
+        
+        if not os.path.exists(f"{self.log_dir}/log-config.json"):
+            self.save_log_config()
         
         self.drone.backward(0)
         
-        while self.altitude > 0:
-            self.drone.land()
-            time.sleep(1)
-        
-        self.stop_video_thread()
+        self.drone.land()
+        time.sleep(1)
 
         logging.info("Waiting for tasks to finish...")
 
@@ -219,12 +229,24 @@ class TelloDrone:
             logging.warning("Drone position-z is out of bounds.")
             self.shutdown(error=True, reason=f"Drone position-z is out of bounds : {self.cur_pos}")
             
+    def run_depth_model(self, frame_img: np.ndarray):
+        if self.frame_idx % 20 == 0:
+            logging.info("Video frame captured")
+            logging.info(f"Estimating depth of frame {self.frame_idx}")
+            depth_image = estimate_depth(frame_img)
+            
+            orig_output_path = os.path.join(f"img/original/{self.init_time}", f"frame-{self.frame_idx}.png")
+            depth_output_path = os.path.join(f"img/depth/{self.init_time}", f"frame-{self.frame_idx}.png")
+            
+            Image.fromarray(frame_img).save(orig_output_path)
+            Image.fromarray(depth_image).save(depth_output_path)
+    
     def process_frame(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format='bgr24')                    
         self.video_writer.write(img)
         
-        if self.active_vid_task:
-            self.active_vid_task(frame)
+        if self.frame_idx >= 100 and self.active_vid_task:
+            self.active_vid_task(img)
     
     def process_video(self) -> None:
         logging.info("Processing video frames in thread.")
@@ -232,14 +254,15 @@ class TelloDrone:
         while not self.stop_video_thread_event.is_set():
             try:
                 for frame in self.container.decode(video=0):
-                    self.process_frame(frame)
+                    self.frame_idx += 1
                     
                     if self.stop_video_thread_event.is_set():
                         break
                     
+                    self.process_frame(frame)
+                    
             except Exception as e:
                 logging.error(f"Error in video processing: {e}")
-                break
 
         logging.info("Exiting video processing thread.")
 
@@ -315,46 +338,124 @@ class TelloDrone:
     def follow_path(self) -> None:
         if not self.waypts:
             logging.error("Path not planned. Call TelloDrone.set_target_pos() and/or TelloDrone.plan_path() first.")
-
-        if self.cur_waypt_idx >= len(self.waypts) - 1:
-            self.active_task = None
         
         dist_waypt = self.get_dist_waypt(self.cur_waypt_idx + 1)
-        if dist_waypt <= 0.5:
+        if dist_waypt <= 0.4:
             self.cur_waypt_idx += 1
             logging.info("Drone has reached waypoint")
             self.active_task = None
-
+        
+        if self.cur_waypt_idx >= len(self.waypts) - 1:
+            self.active_task = None
+            return
+            
         target_waypt = self.waypts[self.cur_waypt_idx + 1]
         
-        attract_coeff = 60
-        if dist_waypt < 2.0:
-            attract_coeff = attract_coeff // 3 * dist_waypt
+        attract_coeff = 80
+        repul_coeff = 15
         
-        control_x, control_y, control_z = apf(self.cur_pos, self.target_pos, attract_coeff)
+        global_delta = self.start_pos - self.target_pos
+        
+        local_delta, total_force = apf(current_pos=self.cur_pos, target_pos=self.target_pos, obstacles=self.obstacles, attraction_coeff_base=attract_coeff, repulsion_coeff=repul_coeff, normalise_val=global_delta.magnitude())
+        
+        distance = local_delta.magnitude()
+        
+        scalar = 1
+        
+        force_x = total_force.x
+        force_y = total_force.y
+        force_z = total_force.z
+        
+        velocity_x = round(force_x / distance * scalar)
+        velocity_y = round(force_y / distance * scalar)
+        velocity_z = round(force_z / distance * scalar)
 
         # Logging control signals
         logging.debug(f"Attraction Coefficient : {attract_coeff}")
-        logging.debug(f"Control signals: X={control_x}, Y={control_y}, Z={control_z}")
+        logging.debug(f"Control signals: X={velocity_x}, Y={velocity_y}, Z={velocity_z}")
 
         # assuming facing towards negative-x
-        if control_x < 0:
-            self.drone.forward(abs(control_x))
+        if velocity_x < 0:
+            self.drone.forward(abs(velocity_x))
         else:
-            self.drone.backward(abs(control_x))
+            self.drone.backward(abs(velocity_x))
 
-        if control_y > 0:
-            self.drone.right(abs(control_y))
+        if velocity_y > 0:
+            self.drone.right(abs(velocity_y))
         else:
-            self.drone.left(abs(control_y))
+            self.drone.left(abs(velocity_y))
 
-        if control_z < 0:
-            self.drone.down(abs(control_z))
+        if velocity_z < 0:
+            self.drone.down(abs(velocity_z))
         else:
-            self.drone.up(abs(control_z))
+            self.drone.up(abs(velocity_z))
 
         time.sleep(0.3)
-        logging.info("Following path")
+        logging.debug(f"Current position : {self.cur_pos}")
+        logging.debug(f"Target position : {target_waypt}")
+        
+    def active_follow_path(self) -> None:
+        self.active_vid_task = self.run_depth_model
+        
+        if not self.waypts:
+            logging.error("Path not planned. Call TelloDrone.set_target_pos() and/or TelloDrone.plan_path() first.")
+        
+        dist_waypt = self.get_dist_waypt(self.cur_waypt_idx + 1)
+        if dist_waypt <= 0.3:
+            self.cur_waypt_idx += 1
+            logging.info("Drone has reached waypoint")
+            self.active_task = None
+            self.active_vid_task = None
+            return
+        
+        if self.cur_waypt_idx >= len(self.waypts) - 1:
+            self.active_task = None
+            self.active_vid_task = None
+            return
+            
+        target_waypt = self.waypts[self.cur_waypt_idx + 1]
+        
+        attract_coeff = 60
+        repul_coeff = 10
+        
+        global_delta = self.start_pos - self.target_pos
+        
+        local_delta, attractive_force, repulsive_force, total_force = apf(current_pos=self.cur_pos, target_pos=self.target_pos, obstacles=self.obstacles, attraction_coeff_base=attract_coeff, repulsion_coeff=repul_coeff, normalise_val=global_delta.magnitude())
+        
+        logging.critical(f"Attractive force : {attractive_force}")
+        logging.critical(f"Repulsive force : {repulsive_force}")
+        
+        distance = local_delta.magnitude()
+        
+        force_x = total_force.x
+        force_y = total_force.y
+        force_z = total_force.z
+        
+        velocity_x = round(force_x / distance)
+        velocity_y = round(force_y / distance)
+        velocity_z = round(force_z / distance)
+
+        # Logging control signals
+        logging.debug(f"Attraction Coefficient : {attract_coeff}")
+        logging.debug(f"Control signals: X={velocity_x}, Y={velocity_y}, Z={velocity_z}")
+
+        # assuming facing towards negative-x
+        if velocity_x < 0:
+            self.drone.forward(abs(velocity_x))
+        else:
+            self.drone.backward(abs(velocity_x))
+
+        if velocity_y > 0:
+            self.drone.right(abs(velocity_y))
+        else:
+            self.drone.left(abs(velocity_y))
+
+        if velocity_z < 0:
+            self.drone.down(abs(velocity_z))
+        else:
+            self.drone.up(abs(velocity_z))
+
+        time.sleep(0.3)
         logging.debug(f"Current position : {self.cur_pos}")
         logging.debug(f"Target position : {target_waypt}")
 
@@ -364,7 +465,7 @@ class TelloDrone:
         
         # self.plan_path(3)
         
-        self.active_task = self.follow_path
+        self.active_task = self.active_follow_path
         
         if self.running and self.active_task is None:
             self.shutdown()

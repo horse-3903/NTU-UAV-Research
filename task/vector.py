@@ -59,6 +59,9 @@ class Vector3D:
     
     def to_ndarr(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
+    
+    def to_arr(self) -> list:
+        return [self.x, self.y, self.z]
 
 if __name__ == "__main__":
     v1 = Vector3D(1, 2, 3)

@@ -29,7 +29,11 @@ def main():
 
     rospy.Subscriber('/nlink_linktrack_nodeframe1', LinktrackNodeframe1, linktrack_callback, queue_size=1)
 
-    tello.set_target_pos(Vector3D(-0.2, 2.2, -1.6))
+    tello.set_target_pos(Vector3D(-0.20, 2.0, -1.00))
+    tello.set_obstacles([(Vector3D(4.0, 3.0, -3.00), 0.70)])
+    tello.set_obstacles([(Vector3D(4.0, 3.0, -2.25), 0.70)])
+    tello.set_obstacles([(Vector3D(2.0, 0.90, -3.00), 0.70)])
+    tello.set_obstacles([(Vector3D(2.0, 0.90, -2.25), 0.70)])
     tello.run_objective()
 
     rospy.spin()
