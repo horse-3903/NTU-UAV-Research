@@ -23,8 +23,7 @@ import numpy as np
 from vector import Vector3D
 
 from apf import apf
-
-from depth_model import estimate_depth
+# from test_apf import apf
 
 from PIL import Image
 
@@ -35,6 +34,9 @@ y_bounds = (0, 4.5)
 z_bounds = (-4.25, 0.0)
 
 logging.basicConfig(level=logging.NOTSET, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logging.info("Loading Model")
+from depth_model import estimate_depth
 
 class TelloDrone:
     def __init__(self) -> None:
@@ -58,9 +60,6 @@ class TelloDrone:
         
         self.drone: Tello = Tello()
         self.running: bool = False
-        
-        self.waypts: List[Vector3D] = []
-        self.cur_waypt_idx: int = -1
         
         self.init_time: datetime = datetime.now()
         self.cur_time: datetime = None
@@ -125,8 +124,6 @@ class TelloDrone:
     def set_target_pos(self, target_pos: Vector3D) -> None:
         logging.info(f"Setting target position: {target_pos}")
         self.target_pos = target_pos
-        self.waypts = [None, self.target_pos]
-        self.cur_waypt_idx = 0
         
     def set_obstacles(self, obstacles: list) -> None:
         self.obstacles.extend(obstacles)
@@ -178,8 +175,8 @@ class TelloDrone:
         
         self.start_video_thread()
         
+        time.sleep(2)
         self.start_pos = self.cur_pos
-        self.waypts[0] = self.start_pos
         
         self.running = True
 
@@ -310,55 +307,34 @@ class TelloDrone:
         elif self.running:
             self.shutdown()
 
-    def plan_path(self, num_pt: int) -> None:
-        logging.info(f"Planning path with {num_pt} waypoints")
-        x_pt = np.linspace(self.start_pos.x, self.target_pos.x, num_pt)
-        y_pt = np.linspace(self.start_pos.y, self.target_pos.y, num_pt)
-        z_pt = np.linspace(self.start_pos.z, self.target_pos.z, num_pt)
-        
-        self.waypts = zip(x_pt, y_pt, z_pt)
-        self.waypts = [Vector3D.from_arr(arr) for arr in self.waypts]
-        self.cur_waypt_idx = 0
-        logging.info("Path planning complete")
-        
-        for idx, waypt in enumerate(self.waypts):
-            logging.debug(f"Waypoint {idx} : {waypt}")
-
-    def get_dist_waypt(self, waypt_idx) -> float:
-        if self.cur_waypt_idx < 0 or waypt_idx >= len(self.waypts):
-            logging.warning("Waypoint index out of range")
-            return False
-
-        target_waypt = self.waypts[waypt_idx]
-        diff = self.cur_pos - target_waypt
-        distance = diff.magnitude()
-        
-        return distance
 
     def follow_path(self) -> None:
-        if not self.waypts:
-            logging.error("Path not planned. Call TelloDrone.set_target_pos() and/or TelloDrone.plan_path() first.")
+        if not self.target_pos:
+            logging.error("Path not planned. Call TelloDrone.plan_path() first.")
         
-        dist_waypt = self.get_dist_waypt(self.cur_waypt_idx + 1)
-        if dist_waypt <= 0.4:
-            self.cur_waypt_idx += 1
-            logging.info("Drone has reached waypoint")
-            self.active_task = None
+        self.active_vid_task = self.run_depth_model
+        local_delta = (self.cur_pos - self.target_pos).magnitude()
         
-        if self.cur_waypt_idx >= len(self.waypts) - 1:
+        if local_delta <= 0.4:
+            logging.info("Drone has reached target")
+            self.active_vid_task = None
             self.active_task = None
-            return
-            
-        target_waypt = self.waypts[self.cur_waypt_idx + 1]
         
         attract_coeff = 80
-        repul_coeff = 15
+        repul_coeff = 20
         
-        global_delta = self.start_pos - self.target_pos
+        global_delta = (self.start_pos - self.target_pos).magnitude()
         
-        local_delta, total_force = apf(current_pos=self.cur_pos, target_pos=self.target_pos, obstacles=self.obstacles, attraction_coeff_base=attract_coeff, repulsion_coeff=repul_coeff, normalise_val=global_delta.magnitude())
-        
-        distance = local_delta.magnitude()
+        total_force, attract_force, repel_force = apf(
+            current_pos=self.cur_pos, 
+            target_pos=self.target_pos, 
+            obstacles=self.obstacles, 
+            # x_bounds=x_bounds,
+            # y_bounds=y_bounds,
+            # z_bounds=z_bounds,
+            attraction_coeff=attract_coeff, 
+            repulsion_coeff=repul_coeff, 
+            normalise_val=global_delta)
         
         scalar = 1
         
@@ -366,12 +342,14 @@ class TelloDrone:
         force_y = total_force.y
         force_z = total_force.z
         
-        velocity_x = round(force_x / distance * scalar)
-        velocity_y = round(force_y / distance * scalar)
-        velocity_z = round(force_z / distance * scalar)
+        velocity_x = round(force_x / local_delta * scalar)
+        velocity_y = round(force_y / local_delta * scalar)
+        velocity_z = round(force_z / local_delta * scalar)
 
         # Logging control signals
-        logging.debug(f"Attraction Coefficient : {attract_coeff}")
+        logging.debug(f"Resultant Force : {total_force}")
+        logging.debug(f"Attractive Force : {attract_force}")
+        logging.debug(f"Repulsive Force : {repel_force}")
         logging.debug(f"Control signals: X={velocity_x}, Y={velocity_y}, Z={velocity_z}")
 
         # assuming facing towards negative-x
@@ -390,82 +368,15 @@ class TelloDrone:
         else:
             self.drone.up(abs(velocity_z))
 
-        time.sleep(0.3)
+        time.sleep(0.2)
         logging.debug(f"Current position : {self.cur_pos}")
-        logging.debug(f"Target position : {target_waypt}")
-        
-    def active_follow_path(self) -> None:
-        self.active_vid_task = self.run_depth_model
-        
-        if not self.waypts:
-            logging.error("Path not planned. Call TelloDrone.set_target_pos() and/or TelloDrone.plan_path() first.")
-        
-        dist_waypt = self.get_dist_waypt(self.cur_waypt_idx + 1)
-        if dist_waypt <= 0.3:
-            self.cur_waypt_idx += 1
-            logging.info("Drone has reached waypoint")
-            self.active_task = None
-            self.active_vid_task = None
-            return
-        
-        if self.cur_waypt_idx >= len(self.waypts) - 1:
-            self.active_task = None
-            self.active_vid_task = None
-            return
-            
-        target_waypt = self.waypts[self.cur_waypt_idx + 1]
-        
-        attract_coeff = 60
-        repul_coeff = 10
-        
-        global_delta = self.start_pos - self.target_pos
-        
-        local_delta, attractive_force, repulsive_force, total_force = apf(current_pos=self.cur_pos, target_pos=self.target_pos, obstacles=self.obstacles, attraction_coeff_base=attract_coeff, repulsion_coeff=repul_coeff, normalise_val=global_delta.magnitude())
-        
-        logging.critical(f"Attractive force : {attractive_force}")
-        logging.critical(f"Repulsive force : {repulsive_force}")
-        
-        distance = local_delta.magnitude()
-        
-        force_x = total_force.x
-        force_y = total_force.y
-        force_z = total_force.z
-        
-        velocity_x = round(force_x / distance)
-        velocity_y = round(force_y / distance)
-        velocity_z = round(force_z / distance)
-
-        # Logging control signals
-        logging.debug(f"Attraction Coefficient : {attract_coeff}")
-        logging.debug(f"Control signals: X={velocity_x}, Y={velocity_y}, Z={velocity_z}")
-
-        # assuming facing towards negative-x
-        if velocity_x < 0:
-            self.drone.forward(abs(velocity_x))
-        else:
-            self.drone.backward(abs(velocity_x))
-
-        if velocity_y > 0:
-            self.drone.right(abs(velocity_y))
-        else:
-            self.drone.left(abs(velocity_y))
-
-        if velocity_z < 0:
-            self.drone.down(abs(velocity_z))
-        else:
-            self.drone.up(abs(velocity_z))
-
-        time.sleep(0.3)
-        logging.debug(f"Current position : {self.cur_pos}")
-        logging.debug(f"Target position : {target_waypt}")
+        logging.debug(f"Target position : {self.target_pos}")
 
     def run_objective(self) -> None:
         logging.info("Running objective")
         self.startup()
         
-        # self.plan_path(3)
-        
-        self.active_task = self.active_follow_path
+        self.active_task = self.follow_path
         
         if self.running and self.active_task is None:
             self.shutdown()

@@ -1,10 +1,22 @@
 import os
+
+from scipy import ndimage
 import numpy as np
-from PIL import Image
+
 import av
+from PIL import Image
+import cv2
+
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 import torch
 
+import matplotlib.pyplot as plt
+
+import logging
+
+logger = logging.getLogger("drone")
+
+logger.info("Initialising Depth Estimation Model")
 # Initialize depth model
 model_name = "model/zoedepth-nyu-kitti"
 image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
@@ -12,11 +24,13 @@ depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
 
 # Depth estimation function
 def estimate_depth(img: np.ndarray):
+    logger.info("Estimating Depth for Image")
+    
     pil_image = Image.fromarray(img)
     inputs = image_processor.preprocess(images=pil_image, return_tensors="pt")
     
     with torch.no_grad():
-        outputs = depth_model(inputs["pixel_values"])
+        outputs = depth_model.forward(inputs["pixel_values"])
     
     post_processed_output = image_processor.post_process_depth_estimation(
         outputs, source_sizes=[(pil_image.height, pil_image.width)]
@@ -51,7 +65,7 @@ def main():
     n = 30  # Process every nth frame
     
     for frame in container.decode(stream):
-        if frame_count % n == 0:
+        if frame_count >= 100 and frame_count % n == 0:
             # Convert frame to numpy array (RGB format)
             frame_rgb = frame.to_image().convert("RGB")
             frame_np = np.array(frame_rgb)
@@ -59,10 +73,7 @@ def main():
             # Estimate depth
             depth_image = estimate_depth(frame_np)
             
-            # Save depth image
-            output_path = os.path.join(output_dir, f"frame-{frame_count}.png")
-            Image.fromarray(depth_image).save(output_path)
-            print(f"Saved depth image: {output_path}")
+            # depth_image
         
         frame_count += 1
 
