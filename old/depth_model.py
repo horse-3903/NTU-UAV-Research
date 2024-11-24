@@ -1,16 +1,13 @@
 import os
 
-from scipy import ndimage
 import numpy as np
 
 import av
 from PIL import Image
-import cv2
 
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 import torch
 
-import matplotlib.pyplot as plt
 
 import logging
 
