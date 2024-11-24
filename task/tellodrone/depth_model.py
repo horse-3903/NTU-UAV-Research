@@ -4,8 +4,6 @@ import numpy as np
 from PIL import Image
 
 import torch
-from torch import Tensor
-from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 
 from typing import Tuple
 from typing import TYPE_CHECKING
@@ -24,11 +22,6 @@ def run_depth_model(self: "TelloDrone", frame_img: np.ndarray) -> None:
         
         Image.fromarray(frame_img).save(orig_output_path)
         Image.fromarray(depth_image).save(depth_output_path)
-
-def load_depth_model(self: "TelloDrone") -> None:
-    model_name = "model/zoedepth-nyu-kitti"
-    self.image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
-    self.depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
 
 def estimate_depth(self: "TelloDrone", img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     self.logger.info("Estimating Depth for Image")

@@ -24,10 +24,10 @@ def task_handler(self: "TelloDrone", pos_arr: list) -> None:
         self.shutdown()
     
 def run_objective(self: "TelloDrone") -> None:
-        self.logger.info("Running objective")
-        self.startup()
-        
-        self.active_task = self.follow_path
-        
-        if self.running and self.active_task is None:
-            self.shutdown()
+    self.logger.info("Running objective")
+    self.startup()
+    
+    self.active_task = self.follow_path
+    
+    if self.running and self.active_task is None:
+        self.shutdown()

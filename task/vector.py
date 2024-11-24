@@ -23,6 +23,9 @@ class Vector3D:
             return Vector3D(self.x / scalar, self.y / scalar, self.z / scalar)
         else:
             raise ValueError("Cannot divide by zero.")
+    
+    def __neg__(self) -> Vector3D:
+        return Vector3D(-self.x, -self.y, -self.z)
 
     def dot(self, other: Vector3D) -> float:
         return self.x * other.x + self.y * other.y + self.z * other.z

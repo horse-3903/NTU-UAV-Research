@@ -8,12 +8,12 @@ from datetime import datetime
 
 from tellopy import Tello
 
-from tellodrone.vector import Vector3D
+from vector import Vector3D
 
+import av
 from typing import NoReturn
 from logging import Logger
 from threading import Thread, Event
-from av.container import InputContainer
 from cv2 import VideoWriter
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 
@@ -37,6 +37,7 @@ class TelloDrone:
         self.x_bounds = (-0.75, 6.85)
         self.y_bounds = (0, 4.5)
         self.z_bounds = (-4.25, 0.0)
+        self.obstacles = []
         
         # task
         self.active_task = lambda: None
@@ -52,17 +53,12 @@ class TelloDrone:
         self.cam = 0.0
         self.mode = 0.0
         
-        # depth model
-        self.image_processor = ZoeDepthImageProcessor()
-        self.depth_model = ZoeDepthForDepthEstimation()
-        self.load_depth_model()
-        
         # video 
-        self.vid_file: os.PathLike = f"vid/vid-{self.run_name}"
+        self.vid_file = f"vid/vid-{self.run_name}"
         self.video_thread = Thread()
         self.stop_video_thread_event = Event()
         
-        self.container = InputContainer()
+        self.container = av.open("placeholder.mp4", "w")
         self.video_writer = VideoWriter()
         self.active_vid_task = lambda: None
         
@@ -83,13 +79,19 @@ class TelloDrone:
         
         self.setup_logging()
         
+        # depth model
+        model_name = "model/zoedepth-nyu-kitti"
+        self.logger.info(f"Loading model from {model_name}")
+        self.image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
+        self.depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
+        
     # importing functions
-    from log import setup_logging, save_log_config
-    from flight_control import flight_data_callback, check_bounds
-    from video import process_frame, process_video, start_video_thread, stop_video_thread
-    from task import task_handler, run_objective
-    from follow_path import set_target_pos
-    from depth_model import load_depth_model, run_depth_model, estimate_depth
+    from tellodrone.log import setup_logging, save_log_config
+    from tellodrone.flight_control import flight_data_callback, check_bounds
+    from tellodrone.video import process_frame, process_video, start_video_thread, stop_video_thread
+    from tellodrone.task import task_handler, run_objective
+    from tellodrone.follow_path import set_target_pos, set_obstacles, follow_path
+    from tellodrone.depth_model import run_depth_model, estimate_depth
 
     def startup(self) -> None:        
         if self.target_pos.is_origin():
@@ -141,6 +143,9 @@ class TelloDrone:
         self.logger.info("Waiting for tasks to finish...")
         self.logger.info("Shutting down drone and ROS node")
         
+        if self.altitude > 0:
+            self.shutdown(error=error, reason=reason)
+        
         self.drone.quit()
         rospy.signal_shutdown("Failed" if error else "Objective Completed")
         
@@ -150,3 +155,12 @@ class TelloDrone:
             self.logger.info(reason if reason else "Objective Completed")
         
         sys.exit(0)
+        
+    def run_objective(self) -> None:
+        self.logger.info("Running objective")
+        self.startup()
+        
+        self.active_task = self.follow_path
+        
+        if self.running and self.active_task is None:
+            self.shutdown()

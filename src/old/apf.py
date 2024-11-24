@@ -5,7 +5,7 @@ def apf(
     current_pos: Vector3D,
     target_pos: Vector3D,
     obstacles: List[Tuple[Vector3D, float]],
-    attraction_coeff_base: float = 1.0,
+    attraction_coeff: float = 1.0,
     repulsion_coeff: float = 1.0,
     normalise_val: float = 10
 ) -> Tuple[Vector3D, Vector3D, Vector3D]:
@@ -17,7 +17,7 @@ def apf(
     if distance_goal == 0:
         attractive_force = Vector3D(0, 0, 0)
     else:
-        attraction_coeff = attraction_coeff_base * (distance_goal / normalise_val)
+        attraction_coeff = attraction_coeff * (distance_goal / normalise_val)
         
         attractive_force = Vector3D(
             attraction_coeff * delta.x,

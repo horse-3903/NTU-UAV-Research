@@ -1,6 +1,9 @@
-from apf import apf
+import time
+
+from tellodrone.apf import apf
 
 from typing import TYPE_CHECKING
+from typing import List, Tuple
 
 from vector import Vector3D
 
@@ -10,6 +13,9 @@ if TYPE_CHECKING:
 def set_target_pos(self: "TelloDrone", target_pos: Vector3D):
     self.logger.info(f"Setting target position to {target_pos}")
     self.target_pos = target_pos
+    
+def set_obstacles(self: "TelloDrone", obstacles: List[Tuple[Vector3D, float]]):
+    self.obstacles.extend(obstacles)
     
 def follow_path(self: "TelloDrone") -> None:
     if not self.target_pos:
@@ -23,6 +29,7 @@ def follow_path(self: "TelloDrone") -> None:
         self.active_vid_task = None
         self.active_task = None
     
+    # to change
     attract_coeff = 80
     repul_coeff = 20
     

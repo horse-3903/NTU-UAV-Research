@@ -5,7 +5,7 @@ import time
 import pybullet
 import pybullet_data
 
-from apf import apf
+from test_apf import apf
 
 import random
 
@@ -37,8 +37,8 @@ def test_apf():
     for ob in obstacles:
         pybullet.loadURDF("sphere2.urdf", basePosition=ob[0].to_arr(), useFixedBase=True, globalScaling=ob[1])
 
-    attract_coeff = 50
-    repul_coeff = 20
+    attract_coeff = 100
+    repul_coeff = 10
     global_delta = (cur_pos - target_pos).magnitude()
 
     while True:
@@ -51,22 +51,15 @@ def test_apf():
             cur_pos = Vector3D.from_arr(cur_pos)
             local_delta = (cur_pos - target_pos).magnitude()
             
-            if local_delta <= 0.3:
+            if local_delta <= 0.6:
                 print("Success: Drone reached the target!")
                 break
             
             print("Current Position :", cur_pos)
             print("Target Position :", target_pos)
-            print("Local Delta :", )
+            print("Local Delta :", local_delta)
     
-            attract_force, repel_force, total_force = apf(
-                current_pos=cur_pos, 
-                target_pos=target_pos, 
-                obstacles=obstacles,
-                attraction_coeff_base=attract_coeff, 
-                repulsion_coeff=repul_coeff, 
-                normalise_val=global_delta
-            )
+            total_force, heading_angle, attract_force, repel_force = apf(cur_pos=cur_pos, target_pos=target_pos, obstacles=obstacles, attract_coeff=attract_coeff, repul_coeff=repul_coeff, influence_dist=1.5)
             
             print("Attraction Force :", attract_force)
             print("Repulsion Force :", repel_force)
@@ -131,9 +124,7 @@ def test_log(log_dir):
                 break
             
             _, cur_orient = pybullet.getBasePositionAndOrientation(drone, physicsClientId=client)
-            pybullet.resetBasePositionAndOrientation(
-                drone, cur_pos.to_arr(), cur_orient
-            )
+            pybullet.resetBasePositionAndOrientation(drone, cur_pos.to_arr(), cur_orient)
 
             local_delta = (cur_pos - target_pos).magnitude()
             if local_delta <= 0.3:
@@ -150,14 +141,7 @@ def test_log(log_dir):
     pybullet.disconnect()
 
 if __name__ == "__main__":
-    success_lst = []
-    logs = sorted(os.listdir("logs"))
-    
-    for i in range(len(logs)):
-        res = test_log("logs/"+logs[i]+"/")
-        if res:
-            success_lst.append(res)
+    # for log in os.listdir("logs"):
+    #     res = test_log("logs/"+log+"/")
             
-    print(success_lst)
-    
-    # test_apf()
+    test_apf()

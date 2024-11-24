@@ -1,4 +1,4 @@
-from task.tellodrone.vector import Vector3D
+from task.vector import Vector3D
 from simple_pid import PID
 
 current_position = Vector3D(0, 0, 0)
