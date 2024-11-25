@@ -1,11 +1,11 @@
 import time
 
-from task.apf import apf
+from apf import apf, apf_with_bounds
 
 from typing import TYPE_CHECKING
 from typing import List, Tuple
 
-from task.vector import Vector3D
+from vector import Vector3D
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone
@@ -14,8 +14,8 @@ def set_target_pos(self: "TelloDrone", target_pos: Vector3D):
     self.logger.info(f"Setting target position to {target_pos}")
     self.target_pos = target_pos
     
-def set_obstacles(self: "TelloDrone", obstacles: List[Tuple[Vector3D, float]]):
-    self.obstacles.extend(obstacles)
+def add_obstacle(self: "TelloDrone", obstacle: Tuple[Vector3D, float]):
+    self.obstacles.append(obstacle)
     
 def follow_path(self: "TelloDrone") -> None:
     if not self.target_pos:
@@ -24,27 +24,39 @@ def follow_path(self: "TelloDrone") -> None:
     self.active_vid_task = self.run_depth_model
     local_delta = (self.cur_pos - self.target_pos).magnitude()
     
-    if local_delta <= 0.4:
+    if local_delta <= 0.3:
         self.logger.info("Drone has reached target")
         self.active_vid_task = None
         self.active_task = None
     
     # to change
-    attract_coeff = 80
-    repul_coeff = 20
+    attract_coeff = 40
+    repel_coeff = 20
+    influence_dist = 1.5
+    bounds_influence_dist = 0.5
     
     global_delta = (self.start_pos - self.target_pos).magnitude()
     
-    total_force, attract_force, repel_force = apf(
-        current_pos=self.cur_pos, 
+    if local_delta < 1.0:
+        attract_coeff = max(7, attract_coeff * local_delta)
+    
+    self.logger.debug(f"Current Position : {self.cur_pos}")
+    self.logger.debug(f"Target Position : {self.target_pos}")
+    self.logger.debug(f"Global Delta : {global_delta}")
+    self.logger.debug(f"Local Delta : {local_delta}")
+    
+    total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
+        cur_pos=self.cur_pos, 
         target_pos=self.target_pos, 
         obstacles=self.obstacles, 
-        # x_bounds=x_bounds,
-        # y_bounds=y_bounds,
-        # z_bounds=z_bounds,
-        attraction_coeff=attract_coeff, 
-        repulsion_coeff=repul_coeff, 
-        normalise_val=global_delta)
+        attract_coeff=attract_coeff, 
+        repel_coeff=repel_coeff, 
+        influence_dist=influence_dist,
+        x_bounds=self.x_bounds,
+        y_bounds=self.y_bounds,
+        z_bounds=self.z_bounds,
+        bounds_influence_dist=bounds_influence_dist
+    )
     
     scalar = 1
     

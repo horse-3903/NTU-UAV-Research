@@ -34,11 +34,8 @@ def process_video(self: "TelloDrone") -> None:
     self.logger.info("Exiting video processing thread.")
 
 def start_video_thread(self: "TelloDrone") -> None:
-    while self.container is None:
-        self.logger.info("Opening video stream from the drone")
-        self.container = av.open(self.drone.get_video_stream())
-        
-    self.logger.error("Video stream not initialized. Cannot start video thread.")
+    if self.container is None:        
+        self.logger.error("Video stream not initialized. Cannot start video thread.")
 
     if self.video_thread and self.video_thread.is_alive():
         self.logger.warning("Video thread is already running.")

@@ -114,7 +114,7 @@ def main():
 
     folder = logs[-1]
     
-    log_dir = f"logs/{folder}/"
+    log_dir = f"logs/{folder}"
 
     # Load configuration and log data
     config = load_config(log_dir)

@@ -5,14 +5,14 @@ import signal
 from tellodrone import TelloDrone
 
 import rospy
-from nlink_parser.msg import LinktrackNode1, LinktrackNodeframe1
+from nlink_parser.msg import LinktrackNodeframe1
 
-from task.vector import Vector3D
+from vector import Vector3D
 
 tello = TelloDrone()
 
-def linktrack_callback(data):
-    node: LinktrackNode1 = data.nodes[0]
+def linktrack_callback(data: LinktrackNodeframe1):
+    node = data.nodes[0]
     pos_arr = node.pos_3d
 
     tello.task_handler(pos_arr=pos_arr)
@@ -28,11 +28,9 @@ def main():
 
     rospy.Subscriber('/nlink_linktrack_nodeframe1', LinktrackNodeframe1, linktrack_callback, queue_size=1)
 
-    tello.set_target_pos(Vector3D(-0.20, 2.0, -0.85))
-    tello.set_obstacles([(Vector3D(4.0, 2.5, -2.75), 0.65)])
-    tello.set_obstacles([(Vector3D(4.0, 2.5, -2.25), 0.65)])
-    tello.set_obstacles([(Vector3D(1.7, 1.6, -2.75), 0.65)])
-    tello.set_obstacles([(Vector3D(1.7, 1.6, -2.25), 0.65)])
+    tello.set_target_pos(Vector3D(-0.30, 1.75, -1.40))
+    tello.add_obstacle((Vector3D(2.35, 2.05, -2.85), 0.75))
+    tello.add_obstacle((Vector3D(2.35, 2.05, -2.35), 0.75))
     tello.run_objective()
 
     rospy.spin()

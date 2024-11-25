@@ -107,7 +107,7 @@ class TelloDroneSim:
         pybullet.resetDebugVisualizerCamera(cameraDistance=3, cameraYaw=90, cameraPitch=-30, cameraTargetPosition=self.cur_pos.to_arr())
         
         # Load environment and drone
-        self.plane_id = pybullet.loadURDF("plane.urdf", basePosition=(5.0, 5.0, -2.80), globalScaling=2)
+        # self.plane_id = pybullet.loadURDF("plane.urdf", basePosition=(5.0, 5.0, -2.80), globalScaling=2)
         self.drone_id = pybullet.loadURDF("duck_vhacd.urdf", basePosition=self.cur_pos.to_arr(), baseOrientation=pybullet.getQuaternionFromEuler([1.57079632679, 0, 3.1415926536]), useFixedBase=False, globalScaling=5)
         self.target_id = pybullet.loadURDF("soccerball.urdf", basePosition=self.target_pos.to_arr(), useFixedBase=True, globalScaling=0.5)
 

@@ -7,12 +7,12 @@ t = TelloDroneSim()
 
 if log:
     t.active_task = t.run_log
-    t.load_config("logs/log-21-11-2024_17:26:15/")
+    t.load_config("logs/log-25-11-2024_10:42:13/")
 else:
     t.attract_coeff = 20
-    t.repel_coeff = 10
-    t.influence_dist = 1.5
-    t.bounds_influence_dist = 0.5
+    t.repel_coeff = 5
+    t.influence_dist = 1.0
+    t.bounds_influence_dist = 1.0
 
     t.active_task = partial(t.run_apf, bounds=True)
     t.generate_obstacles(10, 0.75)
