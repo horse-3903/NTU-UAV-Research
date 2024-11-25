@@ -7,7 +7,7 @@ import random
 
 import traceback
 
-from tellodrone_sim.apf import apf, apf_with_bounds
+from apf import apf, apf_with_bounds
 from vector import Vector3D
 
 class TelloDroneSim:

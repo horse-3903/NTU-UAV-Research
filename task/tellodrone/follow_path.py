@@ -1,11 +1,11 @@
 import time
 
-from tellodrone.apf import apf
+from task.apf import apf
 
 from typing import TYPE_CHECKING
 from typing import List, Tuple
 
-from vector import Vector3D
+from task.vector import Vector3D
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone

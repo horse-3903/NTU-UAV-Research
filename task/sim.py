@@ -14,7 +14,7 @@ else:
     t.influence_dist = 1.5
     t.bounds_influence_dist = 0.5
 
-    t.active_task = partial(t.run_apf, True)
+    t.active_task = partial(t.run_apf, bounds=True)
     t.generate_obstacles(10, 0.75)
 
 t.start_sim()

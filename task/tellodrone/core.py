@@ -8,7 +8,7 @@ from datetime import datetime
 
 from tellopy import Tello
 
-from vector import Vector3D
+from task.vector import Vector3D
 
 import av
 from typing import NoReturn
