@@ -13,9 +13,11 @@ if TYPE_CHECKING:
 def set_target_pos(self: "TelloDrone", target_pos: Vector3D):
     self.logger.info(f"Setting target position to {target_pos}")
     self.target_pos = target_pos
+
     
 def add_obstacle(self: "TelloDrone", obstacle: Tuple[Vector3D, float]):
     self.obstacles.append(obstacle)
+
     
 def follow_path(self: "TelloDrone") -> None:
     if not self.target_pos:

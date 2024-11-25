@@ -11,8 +11,9 @@ from tellopy import Tello
 from vector import Vector3D
 
 import av
+import pygame
+import logging
 from typing import NoReturn
-from logging import Logger
 from threading import Thread, Event
 from cv2 import VideoWriter
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
@@ -56,6 +57,7 @@ class TelloDrone:
         # video 
         self.vid_file = f"vid/vid-{self.run_name}"
         self.video_thread = Thread()
+        self.active_vid_task_thread = Thread()
         self.stop_video_thread_event = Event()
         
         self.container = None
@@ -63,9 +65,16 @@ class TelloDrone:
         self.active_vid_task = None
         
         self.frame_idx = -1
+        self.cur_frame = None
+        
+        self.display_running = True
+        self.screen = None
+        self.clock = pygame.time.Clock()
+        self.display_thread = Thread()
         
         os.makedirs(f"img/original/{self.init_time}", exist_ok=True)
         os.makedirs(f"img/depth/{self.init_time}", exist_ok=True)
+        os.makedirs(f"img/annotated/{self.init_time}", exist_ok=True)
         
         # logging
         self.log_dir = f"logs/log-{self.run_name}/"
@@ -75,25 +84,49 @@ class TelloDrone:
         self.log_pos_file = f"{self.log_dir}/log-pos.log"
         self.log_config_file = f"{self.log_dir}/log-config.json"
         
-        self.logger = Logger(None)
+        self.logger = logging.getLogger()
         
         # depth model
         self.model_name = "model/zoedepth-nyu-kitti"
         self.image_processor: ZoeDepthImageProcessor = None
         self.depth_model: ZoeDepthForDepthEstimation = None
+
         
     # importing functions
     from tellodrone.log import setup_logging, save_log_config
     from tellodrone.flight_control import flight_data_callback, check_bounds
-    from tellodrone.video import process_frame, process_video, start_video_thread, stop_video_thread
+    from tellodrone.video import setup_display, process_frame, process_video, start_video_thread, stop_video_thread
     from tellodrone.task import task_handler, run_objective
     from tellodrone.follow_path import set_target_pos, add_obstacle, follow_path
-    from tellodrone.depth_model import run_depth_model, estimate_depth
+    from tellodrone.depth_model import load_depth_model, run_depth_model, estimate_depth
+
+    
+    def startup_video(self) -> None:
+        self.logger.info("Attempting to connect to the drone")
+        self.drone.connect()
+        self.drone.wait_for_connection(10)
+        
+        self.logger.info("Loading Depth Model")
+        self.load_depth_model()
+        
+        self.logger.info("Starting Drone Video")
+        self.drone.start_video()
+        
+        while self.container is None:
+            self.logger.info("Opening video stream from the drone")
+            self.container = av.open(self.drone.get_video_stream())
+            
+        self.start_video_thread()
+        self.setup_display()
+
 
     def startup(self) -> None:        
         if self.target_pos.is_origin():
             self.logger.warning("Target position is the origin. Aborting startup.")
             self.shutdown(error=True, reason="Target position not set")
+            
+        self.logger.info("Loading Depth Model")
+        self.load_depth_model()
 
         self.logger.info("Starting up the TelloDrone")
 
@@ -108,13 +141,14 @@ class TelloDrone:
         
         self.logger.info("Drone connected successfully")
         
+        self.logger.info("Starting Drone Video")
         self.drone.start_video()
         
         while self.container is None:
             self.logger.info("Opening video stream from the drone")
             self.container = av.open(self.drone.get_video_stream())
             
-        time.sleep(2)
+        time.sleep(1)
         
         self.takeoff_pos = self.cur_pos
 
@@ -128,12 +162,15 @@ class TelloDrone:
         
         self.running = True
 
+
     def shutdown(self, error=False, reason=None) -> NoReturn:
         if error:
             self.logger.error(reason)
-            
+        
         self.logger.info("Shutting down all processes")
         
+        pygame.quit()
+        self.display_running = False
         self.stop_video_thread()
         
         self.save_log_config()
@@ -141,8 +178,6 @@ class TelloDrone:
         self.drone.backward(0)
         
         self.drone.land()
-        time.sleep(1)
-
         self.logger.info("Waiting for tasks to finish...")
         self.logger.info("Shutting down drone and ROS node")
         

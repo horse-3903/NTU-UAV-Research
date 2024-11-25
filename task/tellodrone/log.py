@@ -25,10 +25,12 @@ class ColourFormatter(logging.Formatter):
         logging.CRITICAL: bold_red + format + reset
     }
 
+
     def format(self, record):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
 
 def setup_logging(self: "TelloDrone") -> None:
     stream_handler = logging.StreamHandler()
@@ -46,6 +48,7 @@ def setup_logging(self: "TelloDrone") -> None:
     
     open(self.log_pos_file, "x").close()
     open(self.log_config_file, "x").close()
+
 
 def save_log_config(self: "TelloDrone") -> None:
     config = {
