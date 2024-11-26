@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import os
 
-def process_depth_frame(depth_frame: np.ndarray, threshold_value: int = 120, percentage_threshold: float = 1.00, min_area: int = 20000):
+def process_depth_frame(depth_frame: np.ndarray, threshold_value: int = 80, percentage_threshold: float = 0.95, min_area: int = 20000):
+    threshold_value = np.mean(depth_frame)
     _, thresholded_image = cv2.threshold(depth_frame, threshold_value, 255, cv2.THRESH_BINARY_INV)
 
     for row_idx in range(thresholded_image.shape[0]):

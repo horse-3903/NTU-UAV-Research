@@ -7,7 +7,7 @@ import random
 
 import traceback
 
-from apf import apf, apf_with_bounds
+from apf import apf, apf_with_bounds, apf_with_smooth_decay
 from vector import Vector3D
 
 class TelloDroneSim:
@@ -27,6 +27,8 @@ class TelloDroneSim:
         self.repel_coeff = 10
         self.influence_dist = 1.5
         self.bounds_influence_dist = 0.5
+        self.decay_factor = 2
+        self.bounds_decay_factor = 1
         self.global_delta = (self.cur_pos - self.target_pos).magnitude()
         
         self.active_task = None
@@ -62,29 +64,19 @@ class TelloDroneSim:
     def set_velocity(self, vel: Vector3D):
         pybullet.resetBaseVelocity(self.drone_id, vel.to_arr(), (0, 0, 0))
     
-    def run_apf(self, bounds: bool):
-        if not bounds:
-            total_force, heading_angle, attract_force, repel_force = apf(
-                cur_pos=self.cur_pos, 
-                target_pos=self.target_pos, 
-                obstacles=self.obstacles, 
-                attract_coeff=self.attract_coeff, 
-                repel_coeff=self.repel_coeff, 
-                influence_dist=self.influence_dist
-            )
-        else:
-            total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
-                cur_pos=self.cur_pos, 
-                target_pos=self.target_pos, 
-                obstacles=self.obstacles, 
-                attract_coeff=self.attract_coeff, 
-                repel_coeff=self.repel_coeff, 
-                influence_dist=self.influence_dist,
-                x_bounds=self.x_bounds,
-                y_bounds=self.y_bounds,
-                z_bounds=self.z_bounds,
-                bounds_influence_dist=self.bounds_influence_dist
-            )
+    def run_apf(self):
+        total_force, heading_angle, attract_force, repel_force = apf_with_smooth_decay(
+            cur_pos=self.cur_pos, 
+            target_pos=self.target_pos, 
+            obstacles=self.obstacles, 
+            attract_coeff=self.attract_coeff, 
+            repel_coeff=self.repel_coeff, 
+            decay_factor=self.decay_factor,
+            x_bounds=self.x_bounds,
+            y_bounds=self.y_bounds,
+            z_bounds=self.z_bounds,
+            bounds_decay_factor=self.bounds_decay_factor
+        )
                 
         print("Attraction Force :", attract_force)
         print("Repulsion Force :", repel_force)

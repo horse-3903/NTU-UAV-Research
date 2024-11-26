@@ -13,8 +13,9 @@ else:
     t.repel_coeff = 5
     t.influence_dist = 0.5
     t.bounds_influence_dist = 0.75
-
-    t.active_task = partial(t.run_apf, bounds=True)
+    t.decay_factor = 3
+    t.bounds_decay_factor = 2
+    t.active_task = t.run_apf
     t.generate_obstacles(10, 0.75)
 
 t.start_sim()

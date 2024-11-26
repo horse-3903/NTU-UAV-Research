@@ -33,13 +33,11 @@ def setup_display(self: "TelloDrone"):
     button_color = (50, 150, 50)
     button_hover_color = (80, 200, 80)
     text_color = (255, 255, 255)
-    button_rect = pygame.Rect(10, 10, 250, 50)  # Position and size of the button
+    button_rect = pygame.Rect(10, 10, 400, 50)  # Position and size of the button
 
     self.clock = pygame.time.Clock()
     self.display_running = True
 
-    # Create calibration image directory based on initialization time
-    self.init_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     os.makedirs(f"calibrate/img/{self.init_time}", exist_ok=True)
 
     def display_loop():
@@ -50,13 +48,14 @@ def setup_display(self: "TelloDrone"):
                 if event.type == pygame.QUIT:
                     self.display_running = False
                     break
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                elif event.type == pygame.MOUSEBUTTONDOWN:
                     # Check if the button is clicked
                     if button_rect.collidepoint(event.pos):
-                        save_calibration_image(self)
+                        self.save_image()
+                        self.process_image()
 
             # Draw the video frame
-            if hasattr(self, "cur_frame") and self.cur_frame is not None:
+            if self.cur_frame is not None:
                 frame_surface = pygame.surfarray.make_surface(cv2.cvtColor(self.cur_frame, cv2.COLOR_BGR2RGB))
                 self.screen.blit(pygame.transform.rotate(frame_surface, -90), (0, 0))
 
@@ -68,12 +67,12 @@ def setup_display(self: "TelloDrone"):
                 pygame.draw.rect(self.screen, button_color, button_rect)
 
             # Draw button text
-            text_surface = font.render("Take Calibration Image", True, text_color)
+            text_surface = font.render("Take Image", True, text_color)
             text_rect = text_surface.get_rect(center=button_rect.center)
             self.screen.blit(text_surface, text_rect)
 
             pygame.display.flip()
-            self.clock.tick(30)  # Limit to 30 FPS for smoother updates
+            self.clock.tick(30)
 
         pygame.quit()
         self.logger.info("Pygame display loop exited.")
@@ -83,33 +82,43 @@ def setup_display(self: "TelloDrone"):
     self.display_thread.start()
 
 
-def save_calibration_image(self: "TelloDrone"):
-    if hasattr(self, "cur_frame") and self.cur_frame is not None:
-        img_path = f"calibrate/img/{self.init_time}/frame-{self.frame_idx}.jpg"
+def save_image(self: "TelloDrone", dir: os.PathLike):
+    if self.cur_frame is not None:
+        img_path = f"{dir}/{self.init_time}/frame-{self.frame_idx}.jpg"
         cv2.imwrite(img_path, self.cur_frame)
-        self.logger.info(f"Calibration image saved: {img_path}")
+        self.logger.info(f"Image saved: {img_path}")
     else:
         self.logger.warning("No frame available to save.")
 
 
-def process_frame(self: "TelloDrone", frame: av.VideoFrame):
-    self.cur_frame = frame.to_ndarray(format="bgr24")  # Save the frame for display
+def process_image(self: "TelloDrone"):
+    if self.cur_frame is not None:
+        self.logger.info(f"Processing Image")
+        
+    else:
+        self.logger.warning("No frame available process.")
+        
+
+def process_frame(self: "TelloDrone"):
+    self.cur_frame = self.cur_frame.to_ndarray(format="bgr24")  # Save the frame for display
     self.video_writer.write(self.cur_frame)
 
+    if self.frame_idx < 100:
+        return
+    
     # Start a thread for the active video task if the condition is met
-    if self.frame_idx >= 100 and self.active_vid_task:
-        if self.active_vid_task_thread is None or not self.active_vid_task_thread.is_alive():
-            def task_wrapper():
-                try:
-                    self.active_vid_task(self.cur_frame)
-                except Exception as e:
-                    self.logger.error(f"Error in active video task: {e}")
-                finally:
-                    self.active_vid_task_thread = None
+    if self.active_vid_task and (self.active_vid_task_thread is None or not self.active_vid_task_thread.is_alive()):
+        def task_wrapper():
+            try:
+                self.active_vid_task()
+            except Exception as e:
+                self.logger.error(f"Error in active video task: {e}")
+            finally:
+                self.active_vid_task_thread = None
 
-            # Create and start a new thread for the task
-            self.active_vid_task_thread = threading.Thread(target=task_wrapper)
-            self.active_vid_task_thread.start()
+        # Create and start a new thread for the task
+        self.active_vid_task_thread = threading.Thread(target=task_wrapper)
+        self.active_vid_task_thread.start()
 
 
 def process_video(self: "TelloDrone") -> None:

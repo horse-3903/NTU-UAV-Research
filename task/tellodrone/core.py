@@ -65,10 +65,10 @@ class TelloDrone:
         self.active_vid_task = None
         
         self.frame_idx = -1
-        self.cur_frame = None
+        self.cur_frame : av.VideoFrame = None
         
         self.display_running = True
-        self.screen = None
+        self.screen: pygame.Surface = None
         self.clock = pygame.time.Clock()
         self.display_thread = Thread()
         
@@ -95,7 +95,7 @@ class TelloDrone:
     # importing functions
     from tellodrone.log import setup_logging, save_log_config
     from tellodrone.flight_control import flight_data_callback, check_bounds
-    from tellodrone.video import setup_display, process_frame, process_video, start_video_thread, stop_video_thread
+    from tellodrone.video import setup_display, save_image, process_image, process_frame, process_video, start_video_thread, stop_video_thread
     from tellodrone.task import task_handler, run_objective
     from tellodrone.follow_path import set_target_pos, add_obstacle, follow_path
     from tellodrone.depth_model import load_depth_model, run_depth_model, estimate_depth

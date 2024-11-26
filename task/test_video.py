@@ -5,7 +5,7 @@ tello = TelloDrone()
 
 def main():
     tello.startup_video()
-    time.sleep(500)
+    time.sleep(1000)
     tello.shutdown(error=False)
 
 if __name__ == "__main__":

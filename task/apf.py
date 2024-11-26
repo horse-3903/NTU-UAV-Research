@@ -148,3 +148,84 @@ def apf_with_bounds(
 
     # Return velocity direction, heading angle, and potential values
     return total_force, heading_angle, attractive_potential, repulsive_potential
+
+def apf_with_smooth_decay(
+    cur_pos: Vector3D,
+    target_pos: Vector3D,
+    obstacles: List[Tuple[Vector3D, float]],
+    attract_coeff: float,
+    repel_coeff: float,
+    decay_factor: float,
+    x_bounds: Tuple[float, float],
+    y_bounds: Tuple[float, float],
+    z_bounds: Tuple[float, float],
+    bounds_decay_factor: float,
+):
+    """
+    Artificial Potential Fields with 3D vector support, smooth decay for repulsion, and boundary repulsion.
+
+    Parameters:
+        cur_pos (Vector3D): Current position [x, y, z].
+        target_pos (Vector3D): Goal position [x, y, z].
+        obstacles (list[tuple[Vector3D, float]]): List of obstacles as (position, radius).
+        attract_coeff (float): Gain coefficient for the attractive field.
+        repel_coeff (float): Gain coefficient for the repulsive field.
+        decay_factor (float): Decay factor for smooth repulsion from obstacles.
+        x_bounds (tuple[float, float]): X-axis bounds (min, max).
+        y_bounds (tuple[float, float]): Y-axis bounds (min, max).
+        z_bounds (tuple[float, float]): Z-axis bounds (min, max).
+        bounds_decay_factor (float): Decay factor for smooth boundary repulsion.
+
+    Returns:
+        Vector3D: Velocity direction for the next step [x, y, z].
+        float: Heading angle in radians.
+        float: Magnitude of the attractive potential field.
+        float: Magnitude of the repulsive potential field.
+    """
+    # Attractive force
+    direction_to_goal = target_pos - cur_pos
+    distance_to_goal = direction_to_goal.magnitude()
+    attractive_force = direction_to_goal.normalize() * (attract_coeff * distance_to_goal)
+    attractive_potential = 0.5 * attract_coeff * (distance_to_goal**2)
+
+    # Initialize repulsive forces and potential
+    total_repulsive_force = Vector3D(0, 0, 0)
+    repulsive_potential = 0
+
+    # Repulsion from obstacles with smooth decay
+    for obstacle_pos, obstacle_radius in obstacles:
+        direction_to_obstacle = cur_pos - obstacle_pos
+        distance_to_obstacle = direction_to_obstacle.magnitude() - obstacle_radius
+
+        if distance_to_obstacle > 0:  # Only calculate for positive distances
+            smooth_decay = repel_coeff / (distance_to_obstacle**decay_factor)
+            repulsive_force = direction_to_obstacle.normalize() * smooth_decay
+            total_repulsive_force += repulsive_force
+            repulsive_potential += smooth_decay  # Summing potential contributions
+
+    # Repulsion from bounds with smooth decay
+    bounds = [
+        (x_bounds[0], x_bounds[1], cur_pos.x, Vector3D(1, 0, 0)),
+        (y_bounds[0], y_bounds[1], cur_pos.y, Vector3D(0, 1, 0)),
+        (z_bounds[0], z_bounds[1], cur_pos.z, Vector3D(0, 0, 1)),
+    ]
+
+    for lower, upper, coord, axis_vector in bounds:
+        for boundary in [(lower, -axis_vector), (upper, axis_vector)]:
+            bound_pos, bound_direction = boundary
+            distance_to_bound = abs(coord - bound_pos)
+
+            if distance_to_bound > 0:  # Only calculate for positive distances
+                smooth_decay = repel_coeff / (distance_to_bound**bounds_decay_factor)
+                repulsive_force = bound_direction * smooth_decay
+                total_repulsive_force += repulsive_force
+                repulsive_potential += smooth_decay  # Summing potential contributions
+
+    # Total force
+    total_force = attractive_force + total_repulsive_force
+
+    # Calculate heading angle
+    heading_angle = math.atan2(total_force.y, total_force.x)
+
+    # Return velocity direction, heading angle, and potential values
+    return total_force, heading_angle, attractive_potential, repulsive_potential
