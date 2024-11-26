@@ -30,7 +30,7 @@ def estimate_depth(img: np.ndarray):
     return absolute_depth, relative_depth
 
 if __name__ == "__main__":
-    img = Image.open("/home/horse3903/catkin_ws/src/NTU_UAV_Research/img/original/2024-11-22 15:58:27.718472/frame-160.png")
+    img = Image.open("img/original/2024-11-25 17:18:12.654954/frame-1111.png")
     absolute_depth, relative_depth = estimate_depth(np.array(img))
     plt.imshow(absolute_depth, cmap="viridis")
     plt.colorbar(label="Depth (arbitrary units)")

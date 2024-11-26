@@ -20,7 +20,7 @@ def load_depth_model(self: "TelloDrone") -> None:
 
     
 def run_depth_model(self: "TelloDrone", frame_img: np.ndarray) -> None:
-    if self.frame_idx % 20 == 0:
+    if self.frame_idx % 200 == 0:
         print("Depth Model Running...")
         cur_frame_idx = self.frame_idx
         self.logger.info("Video frame captured")
@@ -75,14 +75,14 @@ def estimate_depth(self: "TelloDrone", img: np.ndarray) -> Tuple[np.ndarray, np.
     return absolute_depth, relative_depth
 
 
-def process_depth_frame(depth_frame: np.ndarray, threshold_value: int = 85, black_percentage_threshold: float = 0.95, min_area: int = 20000) -> List:
+def process_depth_frame(depth_frame: np.ndarray, threshold_value: int = 100, percentage_threshold: float = 0.85, min_area: int = 20000) -> List:
     _, thresholded_image = cv2.threshold(depth_frame, threshold_value, 255, cv2.THRESH_BINARY_INV)
 
     for row_idx in range(thresholded_image.shape[0]):
         black_pixels = np.sum(thresholded_image[row_idx, :] == 255)
         total_pixels = thresholded_image.shape[1]
-        black_percentage = black_pixels / total_pixels
-        if black_percentage >= black_percentage_threshold:
+        percentage = black_pixels / total_pixels
+        if percentage >= percentage_threshold:
             thresholded_image[row_idx, :] = 0
 
     contours, _ = cv2.findContours(thresholded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

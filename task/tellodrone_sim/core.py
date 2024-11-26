@@ -52,9 +52,15 @@ class TelloDroneSim:
             
     def run_log(self):
         self.cur_pos = self.pos[self.pos_idx]
-        pybullet.resetBasePositionAndOrientation(self.drone_id, self.cur_pos.to_arr(), self.cur_orient)
+        self.set_position(self.cur_pos)
         
         self.pos_idx += 1
+        
+    def set_position(self, pos: Vector3D):
+        pybullet.resetBasePositionAndOrientation(self.drone_id, pos.to_arr(), self.cur_orient)
+        
+    def set_velocity(self, vel: Vector3D):
+        pybullet.resetBaseVelocity(self.drone_id, vel.to_arr(), (0, 0, 0))
     
     def run_apf(self, bounds: bool):
         if not bounds:
@@ -93,9 +99,7 @@ class TelloDroneSim:
         
         print()
         
-        pybullet.resetBaseVelocity(
-            self.drone_id, (velocity_x, velocity_y, velocity_z), (0, 0, 0)
-        )
+        self.set_velocity(Vector3D(velocity_x, velocity_y, velocity_z))
     
     def start_sim(self):
         self.client_id = pybullet.connect(pybullet.GUI)

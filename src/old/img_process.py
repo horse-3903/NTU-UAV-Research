@@ -1,72 +1,74 @@
-import os
 import cv2
 import numpy as np
+import os
 
-log = "2024-11-25 17:29:25.794466"
-original_img_dir = f"img/original/{log}"
-depth_img_dir = f"img/depth/{log}"
-# frame = "frame-1111.png"
+def process_depth_frame(depth_frame: np.ndarray, threshold_value: int = 120, percentage_threshold: float = 1.00, min_area: int = 20000):
+    _, thresholded_image = cv2.threshold(depth_frame, threshold_value, 255, cv2.THRESH_BINARY_INV)
 
-for frame in os.listdir(f"{original_img_dir}"):
-    # Load the images
-    original_image = cv2.imread(f"{original_img_dir}/{frame}", cv2.IMREAD_GRAYSCALE)
-    depth_image = cv2.imread(f"{depth_img_dir}/{frame}", cv2.IMREAD_GRAYSCALE)
-
-    # Thresholding and Noise Reduction
-    threshold_value = 50
-    _, thresh_image = cv2.threshold(depth_image, threshold_value, 255, cv2.THRESH_BINARY_INV)  # Invert thresholding
-
-    # FIX THIS
-    # USE ADAPTIVE THRESHOLD/MORE SENSITIVE THRESHOLD FOR LOWER HALF
-    # REFLECT CHANGES
-    
-    # Black Pixel Thresholding (Adjust as needed)
-    black_percentage_threshold = 0.95
-    for i in range(thresh_image.shape[0]):
-        black_pixels = np.sum(thresh_image[i, :] == 255)  # Count white pixels
-        total_pixels = thresh_image.shape[1]
-        black_percentage = black_pixels / total_pixels
-        if black_percentage >= black_percentage_threshold:
-            thresh_image[i, :] = 0  # Set the entire row to black
-
-    # Contour Detection and Filtering
-    contours, _ = cv2.findContours(thresh_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Filter contours based on area (adjust min_area as needed)
-    min_area = 20000
-    filtered_contours = []
-    for contour in contours:
-        if cv2.contourArea(contour) > min_area:
-            filtered_contours.append(contour)
-
-    # Create a copy of the original image to draw contours, centroids, and circles
-    original_image_with_contours = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
-
-    # Loop through each filtered contour
-    for contour in filtered_contours:
-        # Calculate the moments of the contour
-        moment = cv2.moments(contour)
-        
-        # Calculate the centroid (center of mass)
-        if moment["m00"] != 0:  # Avoid division by zero
-            centroid_x = int(moment["m10"] / moment["m00"])
-            centroid_y = int(moment["m01"] / moment["m00"])
+    for row_idx in range(thresholded_image.shape[0]):
+        black_pixels = np.sum(thresholded_image[row_idx, :] == 255)
+        total_pixels = thresholded_image.shape[1]
+        percentage = black_pixels / total_pixels
+        if percentage >= percentage_threshold:
+            thresholded_image[row_idx, :] = 0
             
-            # Draw the centroid on the image (Red dot)
-            cv2.circle(original_image_with_contours, (centroid_x, centroid_y), 5, (0, 0, 255), -1)  # Red color
+    cv2.imshow("", thresholded_image)
 
-            # Calculate the minimum enclosing circle's radius
+    contours, _ = cv2.findContours(thresholded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    filtered_contours = [contour for contour in contours if cv2.contourArea(contour) > min_area]
+
+    results = []
+
+    for contour in filtered_contours:
+        moments = cv2.moments(contour)
+
+        if moments["m00"] != 0:
+            centroid_x = int(moments["m10"] / moments["m00"])
+            centroid_y = int(moments["m01"] / moments["m00"])
+
             _, radius = cv2.minEnclosingCircle(contour)
             radius = int(radius)
-            
-            # Draw the enclosing circle using the centroid as its center (Blue color)
-            cv2.circle(original_image_with_contours, (centroid_x, centroid_y), radius, (255, 0, 0), 2)  # Blue circle
 
-    # Display the images
-    cv2.imshow('Depth Image', depth_image)
-    cv2.imshow('Thresholded Image', thresh_image)
-    cv2.imshow('Original Image with Contours and Centroids', original_image_with_contours)
+            results.append({"centroid": (centroid_x, centroid_y), "radius": radius})
 
-    # Wait for key press and close windows
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    return results
+
+if __name__ == "__main__":
+    logs = ["2024-11-25 17:18:12.654954", "2024-11-25 17:29:25.794466"]
+    
+    for log in logs:
+        original_img_dir = f"img/original/{log}"
+        depth_img_dir = f"img/depth/{log}"
+        # frame = "frame-1120.png"
+
+        for frame in os.listdir(original_img_dir):
+    
+    # log = logs[0]
+    # original_img_dir = f"img/original/{log}"
+    # depth_img_dir = f"img/depth/{log}"
+    # frame = "frame-295.png"
+    
+            print(f"{original_img_dir}/{frame}")
+            # Load the images
+            original_image = cv2.imread(f"{original_img_dir}/{frame}", cv2.IMREAD_GRAYSCALE)
+            depth_image = cv2.imread(f"{depth_img_dir}/{frame}", cv2.IMREAD_GRAYSCALE)
+
+            # Process the depth image to get results
+            depth_results = process_depth_frame(depth_image)
+
+            # Map the results onto the original image
+            original_image_color = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+
+            for result in depth_results:
+                centroid = result['centroid']
+                radius = result['radius']
+
+                # Draw a circle for each result
+                cv2.circle(original_image_color, centroid, radius, (0, 255, 0), 2)  # Green circle
+                cv2.circle(original_image_color, centroid, 5, (0, 0, 255), -1)  # Red centroid
+
+            # Display the result
+            cv2.imshow("Mapped Image", original_image_color)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()

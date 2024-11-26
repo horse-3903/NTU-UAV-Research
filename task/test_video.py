@@ -4,8 +4,6 @@ from tellodrone import TelloDrone
 tello = TelloDrone()
 
 def main():
-    tello.active_vid_task = tello.run_depth_model
-    tello.load_depth_model()
     tello.startup_video()
     time.sleep(500)
     tello.shutdown(error=False)

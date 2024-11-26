@@ -11,8 +11,8 @@ if log:
 else:
     t.attract_coeff = 20
     t.repel_coeff = 5
-    t.influence_dist = 1.0
-    t.bounds_influence_dist = 1.0
+    t.influence_dist = 0.5
+    t.bounds_influence_dist = 0.75
 
     t.active_task = partial(t.run_apf, bounds=True)
     t.generate_obstacles(10, 0.75)
