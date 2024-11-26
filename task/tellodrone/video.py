@@ -1,44 +1,48 @@
-import av
-import cv2
-
-import threading
-
-import pygame
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from tellodrone.core import TelloDrone
-    
 import os
-import pygame
+import math
 import cv2
+
 import threading
-from datetime import datetime
+
+import pygame
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone
 
+if TYPE_CHECKING:
+    from tellodrone.core import TelloDrone
 
 def setup_display(self: "TelloDrone"):
     pygame.init()
 
     # Set up the display window
-    self.screen = pygame.display.set_mode((960, 720))  # Resolution of the Tello drone feed
+    self.screen = pygame.display.set_mode((960, 720))
     pygame.display.set_caption("Tello Drone Video Feed")
 
-    # Fonts and colors for the button
-    font = pygame.font.Font(None, 36)
-    button_color = (50, 150, 50)
-    button_hover_color = (80, 200, 80)
-    text_color = (255, 255, 255)
-    button_rect = pygame.Rect(10, 10, 400, 50)  # Position and size of the button
+    # Load the camera icon image
+    camera_icon = pygame.image.load("camera-icon.png")
+    icon_size = (30, 30)
+    camera_icon = pygame.transform.scale(camera_icon, icon_size)
+
+    # Button properties
+    button_radius = 30
+    button_center = (button_radius + 10, button_radius + 10)
+    button_color = (50, 150, 250)
+    button_hover_color = (80, 180, 255)
 
     self.clock = pygame.time.Clock()
     self.display_running = True
 
     os.makedirs(f"calibrate/img/{self.init_time}", exist_ok=True)
+
+    def draw_circle_button(surface, center, radius, color, hover=False):        
+        button_color_to_use = button_hover_color if hover else color
+        pygame.draw.circle(surface, button_color_to_use, center, radius)
+        
+        icon_pos = (center[0] - icon_size[0] // 2, center[1] - icon_size[1] // 2)
+        surface.blit(camera_icon, icon_pos)
 
     def display_loop():
         self.logger.info("Pygame display loop started.")
@@ -49,27 +53,18 @@ def setup_display(self: "TelloDrone"):
                     self.display_running = False
                     break
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Check if the button is clicked
-                    if button_rect.collidepoint(event.pos):
-                        self.save_image()
+                    mouse_pos = event.pos
+                    distance = math.sqrt((mouse_pos[0] - button_center[0])**2 + (mouse_pos[1] - button_center[1])**2)
+                    if distance <= button_radius:
                         self.process_image()
 
-            # Draw the video frame
             if self.cur_frame is not None:
                 frame_surface = pygame.surfarray.make_surface(cv2.cvtColor(self.cur_frame, cv2.COLOR_BGR2RGB))
                 self.screen.blit(pygame.transform.rotate(frame_surface, -90), (0, 0))
 
-            # Draw the button
             mouse_pos = pygame.mouse.get_pos()
-            if button_rect.collidepoint(mouse_pos):
-                pygame.draw.rect(self.screen, button_hover_color, button_rect)
-            else:
-                pygame.draw.rect(self.screen, button_color, button_rect)
-
-            # Draw button text
-            text_surface = font.render("Take Image", True, text_color)
-            text_rect = text_surface.get_rect(center=button_rect.center)
-            self.screen.blit(text_surface, text_rect)
+            is_hovering = math.sqrt((mouse_pos[0] - button_center[0])**2 + (mouse_pos[1] - button_center[1])**2) <= button_radius
+            draw_circle_button(self.screen, button_center, button_radius, button_color, hover=is_hovering)
 
             pygame.display.flip()
             self.clock.tick(30)
@@ -77,12 +72,11 @@ def setup_display(self: "TelloDrone"):
         pygame.quit()
         self.logger.info("Pygame display loop exited.")
 
-    # Launch the display loop in a separate thread
     self.display_thread = threading.Thread(target=display_loop)
     self.display_thread.start()
 
 
-def save_image(self: "TelloDrone", dir: os.PathLike):
+def save_image(self: "TelloDrone", dir: os.PathLike = "img/manual"):
     if self.cur_frame is not None:
         img_path = f"{dir}/{self.init_time}/frame-{self.frame_idx}.jpg"
         cv2.imwrite(img_path, self.cur_frame)
@@ -95,18 +89,29 @@ def process_image(self: "TelloDrone"):
     if self.cur_frame is not None:
         self.logger.info(f"Processing Image")
         
+        self.save_image()
+        
+        if self.active_img_task and (self.active_img_task_thread is None or not self.active_img_task_thread.is_alive()):
+            def task_wrapper():
+                try:
+                    self.active_img_task()
+                except Exception as e:
+                    self.logger.error(f"Error in active video task: {e}")
+                finally:
+                    self.active_vid_task_thread = None
+
+            self.active_img_task_thread = threading.Thread(target=task_wrapper)
+            self.active_img_task_thread.start()
     else:
         self.logger.warning("No frame available process.")
         
 
 def process_frame(self: "TelloDrone"):
-    self.cur_frame = self.cur_frame.to_ndarray(format="bgr24")  # Save the frame for display
     self.video_writer.write(self.cur_frame)
 
     if self.frame_idx < 100:
         return
     
-    # Start a thread for the active video task if the condition is met
     if self.active_vid_task and (self.active_vid_task_thread is None or not self.active_vid_task_thread.is_alive()):
         def task_wrapper():
             try:
@@ -116,7 +121,6 @@ def process_frame(self: "TelloDrone"):
             finally:
                 self.active_vid_task_thread = None
 
-        # Create and start a new thread for the task
         self.active_vid_task_thread = threading.Thread(target=task_wrapper)
         self.active_vid_task_thread.start()
 
@@ -132,7 +136,8 @@ def process_video(self: "TelloDrone") -> None:
                 if self.stop_video_thread_event.is_set():
                     break
                 
-                self.process_frame(frame)
+                self.cur_frame = frame.to_ndarray(format="bgr24")
+                self.process_frame()
                 
         except Exception as e:
             self.logger.error(f"Error in video processing: {e}")

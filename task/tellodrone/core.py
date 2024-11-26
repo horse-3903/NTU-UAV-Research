@@ -1,6 +1,7 @@
 import os
 import sys
 
+import av.container
 import rospy
 
 import time
@@ -13,7 +14,7 @@ from vector import Vector3D
 import av
 import pygame
 import logging
-from typing import NoReturn
+from typing import NoReturn, List, Tuple, Callable
 from threading import Thread, Event
 from cv2 import VideoWriter
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
@@ -38,31 +39,34 @@ class TelloDrone:
         self.x_bounds = (-0.75, 6.85)
         self.y_bounds = (0, 4.5)
         self.z_bounds = (-4.25, 0.0)
-        self.obstacles = []
+        self.obstacles: List[Tuple[Vector3D, float]] = []
         
         # task
-        self.active_task = None
+        self.active_task : Callable = None
 
         # run name
         self.run_name = self.init_time.strftime('%d-%m-%Y_%H:%M:%S')
         
         # flight information
-        self.altitude = 0.0
-        self.speed = 0.0
-        self.battery = 0.0
-        self.wifi = 0.0
-        self.cam = 0.0
-        self.mode = 0.0
+        self.altitude = 0
+        self.speed = 0
+        self.battery = 0
+        self.wifi = 0
+        self.cam = 0
+        self.mode = 0
         
         # video 
         self.vid_file = f"vid/vid-{self.run_name}"
         self.video_thread = Thread()
         self.active_vid_task_thread = Thread()
+        self.active_img_task_thread = Thread()
         self.stop_video_thread_event = Event()
         
-        self.container = None
+        self.container: av.container.InputContainer = None
         self.video_writer = VideoWriter()
-        self.active_vid_task = None
+        
+        self.active_vid_task: Callable = None
+        self.active_img_task: Callable = None
         
         self.frame_idx = -1
         self.cur_frame : av.VideoFrame = None
@@ -75,6 +79,7 @@ class TelloDrone:
         os.makedirs(f"img/original/{self.init_time}", exist_ok=True)
         os.makedirs(f"img/depth/{self.init_time}", exist_ok=True)
         os.makedirs(f"img/annotated/{self.init_time}", exist_ok=True)
+        os.makedirs(f"img/manual/{self.init_time}", exist_ok=True)
         
         # logging
         self.log_dir = f"logs/log-{self.run_name}/"
@@ -194,10 +199,13 @@ class TelloDrone:
         
         sys.exit(0)
         
-    def run_objective(self) -> None:
+    def run_objective(self, display: bool = False) -> None:
         self.setup_logging()
         self.logger.info("Running objective")
         self.startup()
+        
+        if display:
+            self.setup_display()
         
         self.active_task = self.follow_path
         

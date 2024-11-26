@@ -29,7 +29,7 @@ def clean_files(directories, keep=10):
             print(f"Error cleaning {dir_path}: {e}")
 
 # Directories to clean
-directories_to_clean = ["logs/", "vid/", "img/original", "img/annotated", "img/depth"]
+directories_to_clean = ["logs/", "vid/", "img/original", "img/annotated", "img/depth", "img/manual"]
 
 # Run the cleaning function
 clean_files(directories_to_clean)

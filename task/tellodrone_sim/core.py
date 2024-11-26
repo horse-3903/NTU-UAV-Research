@@ -65,7 +65,7 @@ class TelloDroneSim:
         pybullet.resetBaseVelocity(self.drone_id, vel.to_arr(), (0, 0, 0))
     
     def run_apf(self):
-        total_force, heading_angle, attract_force, repel_force = apf_with_smooth_decay(
+        total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
             cur_pos=self.cur_pos, 
             target_pos=self.target_pos, 
             obstacles=self.obstacles, 
