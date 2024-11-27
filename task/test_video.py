@@ -5,17 +5,13 @@ from tellodrone import TelloDrone
 tello = TelloDrone()
 
 def main():
-    tello.startup_video()
-    # tello.active_img_task = partial(tello.run_depth_model, manual=True)
-    time.sleep(1000)
-    tello.shutdown(error=False)
+    tello.active_img_task = partial(tello.run_depth_model, manual=True)
+    tello.run_objective(display=True)
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        for _ in range(1000):
+            tello.logger.critical("catch 1")
         tello.shutdown(error=True, reason=e)
-    else:
-        tello.shutdown(error=False)
-    finally:
-        tello.shutdown(error=False)

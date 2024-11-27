@@ -24,10 +24,10 @@ dist_coeffs = calibration_data["dist_coeffs"]
 
 # Convert camera intrinsics for easier use
 intrinsics = {
-    "f_x": camera_matrix[0, 0],  # Focal length in x-direction
-    "f_y": camera_matrix[1, 1],  # Focal length in y-direction
-    "c_x": camera_matrix[0, 2],  # Principal point x-coordinate (image center)
-    "c_y": camera_matrix[1, 2],  # Principal point y-coordinate (image center)
+    "f_x": camera_matrix[0, 0],
+    "f_y": camera_matrix[1, 1],
+    "c_x": camera_matrix[0, 2],
+    "c_y": camera_matrix[1, 2],
 }
     
 def load_depth_model(self: "TelloDrone") -> None:
@@ -48,7 +48,9 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         absolute_depth, relative_depth = self.estimate_depth(img=cur_frame)
         
         new_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth, intrinsics)
+        new_obstacles = [(obs + self.cur_pos, radius) for obs, radius in new_obstacles]
         self.obstacles = update_obstacles(self.obstacles, new_obstacles)
+        print(self.obstacles)
         
 
 def estimate_depth(self: "TelloDrone", img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

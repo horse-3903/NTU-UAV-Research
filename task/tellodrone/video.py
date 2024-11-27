@@ -6,15 +6,15 @@ import threading
 
 import pygame
 
+import traceback
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone
 
-if TYPE_CHECKING:
-    from tellodrone.core import TelloDrone
-
 def setup_display(self: "TelloDrone"):
+    # Initialise Pygame Window
     pygame.init()
 
     # Set up the display window
@@ -57,7 +57,6 @@ def setup_display(self: "TelloDrone"):
                     distance = math.sqrt((mouse_pos[0] - button_center[0])**2 + (mouse_pos[1] - button_center[1])**2)
                     if distance <= button_radius:
                         self.process_image()
-
             if self.cur_frame is not None:
                 frame_surface = pygame.surfarray.make_surface(cv2.cvtColor(self.cur_frame, cv2.COLOR_BGR2RGB))
                 self.screen.blit(pygame.transform.rotate(frame_surface, -90), (0, 0))

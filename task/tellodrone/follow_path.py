@@ -23,13 +23,14 @@ def follow_path(self: "TelloDrone") -> None:
     if not self.target_pos:
         self.logger.error("Path not planned. Call TelloDrone.plan_path() first.")
     
-    self.active_vid_task = self.run_depth_model
+    # self.active_vid_task = self.run_depth_model
     local_delta = (self.cur_pos - self.target_pos).magnitude()
     
     if local_delta <= 0.3:
         self.logger.info("Drone has reached target")
         self.active_vid_task = None
         self.active_task = None
+        self.shutdown(error=False, reason="Follow Path Task Complete")
     
     # to change
     attract_coeff = 40

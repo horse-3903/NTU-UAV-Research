@@ -19,6 +19,8 @@ from threading import Thread, Event
 from cv2 import VideoWriter
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 
+import traceback
+
 class TelloDrone:
     def __init__(self) -> None:
         # position
@@ -71,7 +73,7 @@ class TelloDrone:
         self.frame_idx = -1
         self.cur_frame : av.VideoFrame = None
         
-        self.display_running = True
+        self.display_running = False
         self.screen: pygame.Surface = None
         self.clock = pygame.time.Clock()
         self.display_thread = Thread()
@@ -101,7 +103,7 @@ class TelloDrone:
     from tellodrone.log import setup_logging, save_log_config
     from tellodrone.flight_control import flight_data_callback, check_bounds
     from tellodrone.video import setup_display, save_image, process_image, process_frame, process_video, start_video_thread, stop_video_thread
-    from tellodrone.task import task_handler, run_objective
+    from tellodrone.task import task_handler
     from tellodrone.follow_path import set_target_pos, add_obstacle, follow_path
     from tellodrone.depth_model import load_depth_model, run_depth_model, estimate_depth
 
@@ -125,7 +127,7 @@ class TelloDrone:
         self.setup_display()
 
 
-    def startup(self) -> None:        
+    def startup(self, display: bool) -> None:        
         if self.target_pos.is_origin():
             self.logger.warning("Target position is the origin. Aborting startup.")
             self.shutdown(error=True, reason="Target position not set")
@@ -153,6 +155,10 @@ class TelloDrone:
             self.logger.info("Opening video stream from the drone")
             self.container = av.open(self.drone.get_video_stream())
             
+        self.start_video_thread()
+        if display:
+            self.setup_display()
+            
         time.sleep(1)
         
         self.takeoff_pos = self.cur_pos
@@ -160,21 +166,19 @@ class TelloDrone:
         self.logger.info("Taking off")
         self.drone.takeoff()
         
-        self.start_video_thread()
-        
         time.sleep(2)
         self.start_pos = self.cur_pos
         
         self.running = True
+        print("Done startup")
 
 
     def shutdown(self, error=False, reason=None) -> NoReturn:
         if error:
             self.logger.error(reason)
         
-        self.logger.info("Shutting down all processes")
+        self.logger.info(f"Shutting down all processes : {reason}")
         
-        pygame.quit()
         self.display_running = False
         self.stop_video_thread()
         
@@ -189,6 +193,7 @@ class TelloDrone:
         if self.altitude > 0:
             self.shutdown(error=error, reason=reason)
         
+        pygame.quit()
         self.drone.quit()
         rospy.signal_shutdown("Failed" if error else "Objective Completed")
         
@@ -202,12 +207,8 @@ class TelloDrone:
     def run_objective(self, display: bool = False) -> None:
         self.setup_logging()
         self.logger.info("Running objective")
-        self.startup()
+        self.startup(display=display)
         
-        if display:
-            self.setup_display()
+        time.sleep(100)
         
         self.active_task = self.follow_path
-        
-        if self.running and self.active_task is None:
-            self.shutdown()
