@@ -12,7 +12,7 @@ from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 from typing import Tuple
 from typing import TYPE_CHECKING
 
-from tellodrone.map_obstacle import find_obstacles, undistort_coordinates, get_3d_position, process_obstacles, update_obstacles
+from tellodrone.map_obstacle import process_obstacles, update_obstacles, draw_obstacles
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone
@@ -37,8 +37,9 @@ def load_depth_model(self: "TelloDrone") -> None:
 
 # vid_task
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    if manual or (not manual and self.frame_idx % 150 == 0):
-        print("Depth Model Running...")
+    # (not manual and self.frame_idx % 150 == 0)
+    if manual:
+        self.logger.info("Depth Model Running")
         cur_frame_idx = self.frame_idx
         cur_frame = cv2.cvtColor(self.cur_frame, cv2.COLOR_BGR2RGB)
         
@@ -47,11 +48,22 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         
         absolute_depth, relative_depth = self.estimate_depth(img=cur_frame)
         
-        new_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth, intrinsics)
-        new_obstacles = [(obs + self.cur_pos, radius) for obs, radius in new_obstacles]
-        self.obstacles = update_obstacles(self.obstacles, new_obstacles)
-        print(self.obstacles)
+        self.logger.info("Processing Obstacles")
+        real_obstacles, pixel_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth, intrinsics)
+        real_obstacles = [(obs + self.cur_pos, radius) for obs, radius in real_obstacles]
         
+        self.logger.info("Updating Obstacles")
+        # self.obstacles =
+        test_obstacles = update_obstacles(self.obstacles, real_obstacles)
+
+        self.logger.info("Saving images")
+        
+        annotated = draw_obstacles(cur_frame, real_obstacles, pixel_obstacles)
+        cv2.imwrite(f"img/depth/{self.init_time}/frame-{cur_frame_idx}.png", relative_depth)
+        cv2.imwrite(f"img/annotated/{self.init_time}/frame-{cur_frame_idx}.png", annotated)
+        cv2.imwrite(f"img/manual/{self.init_time}/frame-{cur_frame_idx}.png", cur_frame)
+        
+        self.logger.info(f"Done with Depth Processing of Frame {cur_frame_idx}")
 
 def estimate_depth(self: "TelloDrone", img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     self.logger.info("Estimating Depth for Image")

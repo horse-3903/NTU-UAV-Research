@@ -11,6 +11,8 @@ from tellopy import Tello
 
 from vector import Vector3D
 
+from functools import partial
+
 import av
 import pygame
 import logging
@@ -18,8 +20,6 @@ from typing import NoReturn, List, Tuple, Callable
 from threading import Thread, Event
 from cv2 import VideoWriter
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
-
-import traceback
 
 class TelloDrone:
     def __init__(self) -> None:
@@ -102,7 +102,7 @@ class TelloDrone:
     # importing functions
     from tellodrone.log import setup_logging, save_log_config
     from tellodrone.flight_control import flight_data_callback, check_bounds
-    from tellodrone.video import setup_display, save_image, process_image, process_frame, process_video, start_video_thread, stop_video_thread
+    from tellodrone.video import setup_display, process_image, process_frame, process_video, start_video_thread, stop_video_thread
     from tellodrone.task import task_handler
     from tellodrone.follow_path import set_target_pos, add_obstacle, follow_path
     from tellodrone.depth_model import load_depth_model, run_depth_model, estimate_depth
@@ -170,7 +170,6 @@ class TelloDrone:
         self.start_pos = self.cur_pos
         
         self.running = True
-        print("Done startup")
 
 
     def shutdown(self, error=False, reason=None) -> NoReturn:
@@ -184,14 +183,12 @@ class TelloDrone:
         
         self.save_log_config()
         
+        self.logger.info("Landing Drone")
         self.drone.backward(0)
-        
         self.drone.land()
+        
         self.logger.info("Waiting for tasks to finish...")
         self.logger.info("Shutting down drone and ROS node")
-        
-        if self.altitude > 0:
-            self.shutdown(error=error, reason=reason)
         
         pygame.quit()
         self.drone.quit()
@@ -207,8 +204,8 @@ class TelloDrone:
     def run_objective(self, display: bool = False) -> None:
         self.setup_logging()
         self.logger.info("Running objective")
+        
+        # self.active_task = self.follow_path
+        self.active_task = partial(time.sleep, 1)
+        self.active_img_task = partial(self.run_depth_model, manual=True)
         self.startup(display=display)
-        
-        time.sleep(100)
-        
-        self.active_task = self.follow_path

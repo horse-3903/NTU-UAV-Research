@@ -5,6 +5,8 @@ from typing import List, Tuple, Dict
 
 from vector import Vector3D
 
+import traceback
+
 # Load calibration data
 calibration_data = np.load("calibration_data.npz")
 camera_matrix = calibration_data["camera_matrix"]
@@ -18,7 +20,7 @@ intrinsics = {
     "c_y": camera_matrix[1, 2],  # Principal point y-coordinate (image center)
 }
 
-def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percentage_threshold: float = 0.85, min_area: int = 20000) -> List[Dict]:
+def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percentage_threshold: float = 0.85, min_area: int = 20000) -> List[Tuple[Vector3D, float]]:
     if not threshold_value:
         threshold_value = max(70, np.mean(depth_frame))
     
@@ -42,7 +44,7 @@ def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percent
             centroid_y = int(moments["m01"] / moments["m00"])
             _, radius = cv2.minEnclosingCircle(contour)
             radius = int(radius)
-            results.append({"centroid": (centroid_x, centroid_y), "radius": radius})
+            results.append([(centroid_x, centroid_y), radius])
     return results
 
 def undistort_coordinates(x: int, y: int, image: np.ndarray) -> Tuple[int, int]:
@@ -60,27 +62,31 @@ def get_3d_position(centroid: Tuple[int, int], absolute_depth: np.ndarray, intri
     Z = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
     return X, Y, Z
 
-def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray, intrinsics: dict) -> List[Tuple[Vector3D, float]]:
-    obstacles = find_obstacles(relative_depth)
-    results = []
+def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray, intrinsics: dict) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[float, float], float]]]:
+    try:
+        obstacles = find_obstacles(relative_depth)
+        real_res = []
+        pixel_res = []
 
-    for obstacle in obstacles:
-        centroid = obstacle["centroid"]
-        radius_pixels = obstacle["radius"]
-        undistorted_x, undistorted_y = undistort_coordinates(*centroid, image)
+        for obstacle in obstacles:
+            centroid, radius_pixels = obstacle
+            undistorted_x, undistorted_y = undistort_coordinates(*centroid, image)
 
-        # Get depth at the centroid
-        depth = absolute_depth[centroid[0], centroid[1]]
+            # Get depth at the centroid
+            depth = absolute_depth[centroid[1], centroid[0]]
 
-        # Convert radius to global scale (meters)
-        radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
+            # Convert radius to global scale (meters)
+            radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
 
-        # Get 3D position of the obstacle
-        X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth, intrinsics)
+            # Get 3D position of the obstacle
+            X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth, intrinsics)
 
-        results.append((Vector3D(X, Y, Z), radius_meters))
+            real_res.append((Vector3D(X, Y, Z), radius_meters))
+            pixel_res.append((centroid, radius_pixels))
+    except:
+        traceback.print_exc()
 
-    return results
+    return real_res, pixel_res
 
 def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]]) -> List[Tuple[Vector3D, float]]:
     updated_obs = cur_obs.copy() 
@@ -105,18 +111,16 @@ def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[
 
     return updated_obs
 
-def draw_obstacles(image: np.ndarray, obstacles: List[Dict]):
-    for obstacle in obstacles:
-        centroid = obstacle["centroid"]
-        radius_pixels = obstacle["radius_pixels"]
-        radius_meters = obstacle["radius_meters"]
-        position = obstacle["3D_position"]
+def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float]], pixel_obstacles: List[Tuple[Tuple[float, float], float]]):
+    for idx in range(len(real_obstacles)):
+        centroid, radius_pixels = pixel_obstacles[idx]
+        position, radius_meters = real_obstacles[idx]
         
         cv2.circle(image, centroid, radius_pixels, (255, 0, 0), 2)
         
         cv2.circle(image, centroid, 5, (255, 0, 0), -1)
         
-        cv2.putText(image, f"({position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f})", (centroid[0] + 5, centroid[1] - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
+        cv2.putText(image, f"({position.x:.2f}, {position.y:.2f}, {position.z:.2f})", (centroid[0] + 5, centroid[1] - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
         cv2.putText(image, f"Radius: {radius_meters:.2f} m", (centroid[0] + 5, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
 
     return image

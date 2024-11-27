@@ -33,10 +33,10 @@ def main():
     tello.set_target_pos(Vector3D(-0.30, 1.75, -1.40))
     # tello.set_target_pos(Vector3D(5.95, 2.30, -0.85))
     
-    tello.add_obstacle((Vector3D(2.35, 2.05, -2.85), 0.75))
-    tello.add_obstacle((Vector3D(2.35, 2.05, -2.35), 0.75))
+    # tello.add_obstacle((Vector3D(2.35, 2.05, -2.85), 0.75))
+    # tello.add_obstacle((Vector3D(2.35, 2.05, -2.35), 0.75))
     
-    tello.run_objective(display=False)
+    tello.run_objective(display=True)
 
     rospy.spin()
 

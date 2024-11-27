@@ -6,8 +6,6 @@ import threading
 
 import pygame
 
-import traceback
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -75,20 +73,9 @@ def setup_display(self: "TelloDrone"):
     self.display_thread.start()
 
 
-def save_image(self: "TelloDrone", dir: os.PathLike = "img/manual"):
-    if self.cur_frame is not None:
-        img_path = f"{dir}/{self.init_time}/frame-{self.frame_idx}.jpg"
-        cv2.imwrite(img_path, self.cur_frame)
-        self.logger.info(f"Image saved: {img_path}")
-    else:
-        self.logger.warning("No frame available to save.")
-
-
 def process_image(self: "TelloDrone"):
     if self.cur_frame is not None:
         self.logger.info(f"Processing Image")
-        
-        self.save_image()
         
         if self.active_img_task and (self.active_img_task_thread is None or not self.active_img_task_thread.is_alive()):
             def task_wrapper():
