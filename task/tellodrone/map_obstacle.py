@@ -54,15 +54,15 @@ def undistort_coordinates(x: int, y: int, image: np.ndarray) -> Tuple[int, int]:
     undistorted_y = mapy[y, x]
     return int(undistorted_x), int(undistorted_y)
 
-def get_3d_position(centroid: Tuple[int, int], absolute_depth: np.ndarray, intrinsics: dict) -> Tuple[float, float, float]:
+def get_3d_position(centroid: Tuple[int, int], absolute_depth: np.ndarray) -> Tuple[float, float, float]:
     x, y = centroid
-    depth = absolute_depth[y, x]
+    depth = np.mean(absolute_depth[y-2:y+3, x-2:x+3])
     X = -depth
     Y = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]
     Z = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
     return X, Y, Z
 
-def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray, intrinsics: dict) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[float, float], float]]]:
+def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[float, float], float]]]:
     try:
         obstacles = find_obstacles(relative_depth)
         real_res = []
@@ -79,7 +79,7 @@ def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_de
             radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
 
             # Get 3D position of the obstacle
-            X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth, intrinsics)
+            X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth)
 
             real_res.append((Vector3D(X, Y, Z), radius_meters))
             pixel_res.append((centroid, radius_pixels))
@@ -124,3 +124,42 @@ def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float
         cv2.putText(image, f"Radius: {radius_meters:.2f} m", (centroid[0] + 5, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
 
     return image
+
+def find_checkerboard_position(image: np.ndarray, absolute_depth: np.ndarray, checkerboard_size: Tuple[int, int]) -> Tuple[np.ndarray, List[Tuple[float, float, float]]]:
+    annotated_image = image.copy()
+    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+
+    # Detect the checkerboard corners
+    ret, corners = cv2.findChessboardCorners(grayscale, checkerboard_size, None)
+
+    if not ret:
+        print("Checkerboard not found.")
+        return annotated_image, []
+
+    # Refine corner positions
+    corners = cv2.cornerSubPix(grayscale, corners, winSize=(11, 11), zeroZone=(-1, -1), criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+
+    # Undistort corner points
+    undistorted_corners = cv2.undistortPoints(corners, camera_matrix, dist_coeffs, P=camera_matrix).reshape(-1, 2)
+
+    # Calculate 3D positions of the corners
+    positions_3d = []
+    for corner in undistorted_corners:
+        x, y = int(corner[0]), int(corner[1])
+        depth = np.mean(absolute_depth[y-2 : y+3, x-2 : x+3])  # Average depth
+
+        # Skip invalid depth points
+        if depth == 0 or np.isnan(depth):
+            continue
+
+        # Calculate 3D coordinates relative to the camera
+        X = -depth
+        Y = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]
+        Z = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
+
+        positions_3d.append((X, Y, Z))
+
+    # Draw detected checkerboard on the image
+    annotated_image = cv2.drawChessboardCorners(annotated_image, checkerboard_size, corners, ret)
+
+    return annotated_image, positions_3d

@@ -22,4 +22,4 @@ def task_handler(self: "TelloDrone", pos_arr: list) -> None:
     if self.running and self.active_task is not None:
         self.active_task()
     elif self.running:
-        self.shutdown(reason="No")
+        self.shutdown(reason="No active task")

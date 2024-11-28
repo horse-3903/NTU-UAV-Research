@@ -16,6 +16,7 @@ from functools import partial
 import av
 import pygame
 import logging
+from numpy import ndarray
 from typing import NoReturn, List, Tuple, Callable
 from threading import Thread, Event
 from cv2 import VideoWriter
@@ -40,7 +41,7 @@ class TelloDrone:
         # bounds
         self.x_bounds = (-0.75, 6.85)
         self.y_bounds = (0, 4.5)
-        self.z_bounds = (-4.25, 0.0)
+        self.z_bounds = (-3.75, 0.0)
         self.obstacles: List[Tuple[Vector3D, float]] = []
         
         # task
@@ -71,7 +72,7 @@ class TelloDrone:
         self.active_img_task: Callable = None
         
         self.frame_idx = -1
-        self.cur_frame : av.VideoFrame = None
+        self.cur_frame : ndarray = None
         
         self.display_running = False
         self.screen: pygame.Surface = None
@@ -159,7 +160,7 @@ class TelloDrone:
         if display:
             self.setup_display()
             
-        time.sleep(1)
+        time.sleep(2)
         
         self.takeoff_pos = self.cur_pos
 
@@ -206,6 +207,9 @@ class TelloDrone:
         self.logger.info("Running objective")
         
         # self.active_task = self.follow_path
+        
         self.active_task = partial(time.sleep, 1)
         self.active_img_task = partial(self.run_depth_model, manual=True)
-        self.startup(display=display)
+        
+        # self.startup(display=display)
+        self.startup_video()

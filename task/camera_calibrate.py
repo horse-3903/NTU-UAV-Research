@@ -4,12 +4,12 @@ import numpy as np
 from vector import Vector3D
 import glob
 
-def calibrate_camera(image_dir: str, pattern_size: tuple[int, int], square_size: float = 20.0):
+def calibrate_camera(image_dir: str, pattern_size: tuple[int, int], square_size: float = 0.02):
     # Prepare object points with real-world scaling
     objp = [Vector3D(x * square_size, y * square_size, 0) for y in range(pattern_size[1]) for x in range(pattern_size[0])]
 
-    objpoints = []  # 3D points in real-world space
-    imgpoints = []  # 2D points in image plane
+    objpoints = []
+    imgpoints = []
 
     # Load images
     images = glob.glob(f"{image_dir}/*.jpg")

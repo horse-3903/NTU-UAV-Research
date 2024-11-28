@@ -12,6 +12,4 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        for _ in range(1000):
-            tello.logger.critical("catch 1")
         tello.shutdown(error=True, reason=e)
