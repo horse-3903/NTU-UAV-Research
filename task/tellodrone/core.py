@@ -71,7 +71,7 @@ class TelloDrone:
         self.active_vid_task: Callable = None
         self.active_img_task: Callable = None
         
-        self.frame_idx = -1
+        self.cur_frame_idx = -1
         self.cur_frame : ndarray = None
         
         self.display_running = False
@@ -104,7 +104,7 @@ class TelloDrone:
     # importing functions
     from tellodrone.log import setup_logging, save_log_config
     from tellodrone.flight_control import flight_data_callback, check_bounds
-    from tellodrone.video import setup_display, process_image, process_frame, process_video, start_video_thread, stop_video_thread
+    from tellodrone.video import setup_display, process_image, process_frame, process_video, start_video_thread, stop_video_thread, save_calibrate_image
     from tellodrone.task import task_handler
     from tellodrone.follow_path import set_target_pos, add_obstacle, follow_path
     from tellodrone.depth_model import load_depth_model, run_depth_model, estimate_depth
@@ -202,14 +202,21 @@ class TelloDrone:
         
         sys.exit(0)
         
+        
+    def run_calibration(self) -> None:
+        self.setup_logging()
+        self.logger.info("Running objective")
+        
+        self.active_img_task = partial(self.save_calibrate_image, manual=True)
+        
+        self.startup_video()
+    
+        
     def run_objective(self, display: bool = False) -> None:
         self.setup_logging()
         self.logger.info("Running objective")
         
         self.active_task = self.follow_path
-        
         # self.active_task = partial(time.sleep, 1)
-        # self.active_img_task = partial(self.run_depth_model, manual=True)
         
         self.startup(display=display)
-        # self.startup_video()

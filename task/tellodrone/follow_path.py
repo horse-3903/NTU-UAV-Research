@@ -39,8 +39,8 @@ def follow_path(self: "TelloDrone") -> None:
     # to change
     attract_coeff = 30
     repel_coeff = 10
-    influence_dist = 1.5
-    bounds_influence_dist = 1.5
+    influence_dist = 1.0
+    bounds_influence_dist = 1.0
     
     global_delta = (self.start_pos - self.target_pos).magnitude()
     

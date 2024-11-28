@@ -1,11 +1,11 @@
-import os
 import math
+
 import cv2
 import numpy as np
+
 import threading
-import time
+
 import pygame
-from queue import Queue
 
 from typing import TYPE_CHECKING
 
@@ -68,6 +68,11 @@ def setup_display(self: "TelloDrone"):
 
     self.display_thread = threading.Thread(target=display_loop)
     self.display_thread.start()
+    
+    
+def save_calibrate_image(self: "TelloDrone"):
+    cv2.imwrite(f"calibrate/frame-{self.cur_frame_idx}.png", self.cur_frame)
+
 
 def process_image(self: "TelloDrone"):
     if self.cur_frame is not None:
@@ -78,16 +83,18 @@ def process_image(self: "TelloDrone"):
     else:
         self.logger.warning("No frame available to process.")
 
+
 def process_frame(self: "TelloDrone"):
     self.video_writer.write(self.cur_frame)
 
     # Process frame after a certain count to avoid unnecessary frame processing
-    if self.frame_idx < 30:
+    if self.cur_frame_idx < 30:
         return
 
     if self.active_vid_task and (self.active_vid_task_thread is None or not self.active_vid_task_thread.is_alive()):
         self.active_vid_task_thread = threading.Thread(target=self.active_vid_task)
         self.active_vid_task_thread.start()
+
 
 def process_video(self: "TelloDrone") -> None:
     self.logger.info("Processing video frames in thread.")
@@ -95,7 +102,7 @@ def process_video(self: "TelloDrone") -> None:
     while not self.stop_video_thread_event.is_set():
         try:
             for frame in self.container.decode(video=0):
-                self.frame_idx += 1
+                self.cur_frame_idx += 1
                 if self.stop_video_thread_event.is_set():
                     break
 
@@ -108,6 +115,7 @@ def process_video(self: "TelloDrone") -> None:
             self.logger.error(f"Error in video processing: {e}")
 
     self.logger.info("Exiting video processing thread.")
+
 
 def start_video_thread(self: "TelloDrone") -> None:
     if self.container is None:
@@ -124,6 +132,7 @@ def start_video_thread(self: "TelloDrone") -> None:
     self.video_thread = threading.Thread(target=self.process_video)
     self.video_thread.start()
     self.logger.info("Video processing thread started.")
+
 
 def stop_video_thread(self: "TelloDrone") -> None:
     if not self.video_thread or not self.video_thread.is_alive():

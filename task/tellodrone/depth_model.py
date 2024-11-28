@@ -20,11 +20,11 @@ def load_depth_model(self: "TelloDrone") -> None:
     self.image_processor = ZoeDepthImageProcessor.from_pretrained(self.model_name)
     self.depth_model = ZoeDepthForDepthEstimation.from_pretrained(self.model_name)
 
-# vid_task
+
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    if manual or self.frame_idx % 200 == 0:
+    if manual or self.cur_frame_idx % 200 == 0:
         self.logger.critical("Depth Model Running")
-        cur_frame_idx = self.frame_idx
+        cur_frame_idx = self.cur_frame_idx
         cur_frame = self.cur_frame
         
         with open(self.log_pos_file, "r") as f:
@@ -39,7 +39,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         cur_pos = Vector3D(avg_x, avg_y, avg_z)
         
         self.logger.info("Video frame captured")
-        self.logger.info(f"Estimating depth of frame {self.frame_idx}")
+        self.logger.info(f"Estimating depth of frame {self.cur_frame_idx}")
         
         absolute_depth, relative_depth = self.estimate_depth(img=cur_frame)
         
@@ -50,10 +50,6 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         
         self.logger.info("Updating Obstacles")
         self.obstacles = update_obstacles(cur_obs=self.obstacles, new_obs=real_obstacles, threshold=1.0, x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
-
-        # self.logger.info("Finding checkerboard location")
-        # annotated, pos_3d = find_checkerboard_position(image=cur_frame, absolute_depth=absolute_depth, checkerboard_size=(9, 7))
-        # self.logger.info(f"Checkerboard at position : {pos_3d}")
 
         self.logger.info("Saving images")
         
@@ -67,6 +63,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         self.depth_model_run = True
         
         self.logger.info(f"Done with Depth Processing of Frame {cur_frame_idx}")
+
 
 def estimate_depth(self: "TelloDrone", img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     self.logger.info("Estimating Depth for Image")

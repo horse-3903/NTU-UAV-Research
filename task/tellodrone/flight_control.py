@@ -22,6 +22,7 @@ def flight_data_callback(self: "TelloDrone", event, sender, data):
         self.shutdown(error=True, reason=f"Insufficient battery at {self.battery}%")
     elif self.battery <= 10:
         self.logger.warning(f"Drone battery low at {self.battery}%")
+        
 
 def check_bounds(self: "TelloDrone", x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float]):
     x_min, x_max = x_bounds
