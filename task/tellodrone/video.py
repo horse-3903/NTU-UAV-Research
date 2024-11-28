@@ -31,8 +31,6 @@ def setup_display(self: "TelloDrone"):
     self.clock = pygame.time.Clock()
     self.display_running = True
 
-    os.makedirs(f"calibrate/img/{self.init_time}", exist_ok=True)
-
     def draw_circle_button(surface, center, radius, color, hover=False):
         button_color_to_use = button_hover_color if hover else color
         pygame.draw.circle(surface, button_color_to_use, center, radius)

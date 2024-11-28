@@ -5,12 +5,12 @@ log = False
 
 t = TelloDroneSim()
 
-t.attract_coeff = 20
-t.repel_coeff = 10
+t.attract_coeff = 10
+t.repel_coeff = 5
 t.influence_dist = 0.5
 t.bounds_influence_dist = 0.5
-t.generate_obstacles(10, 0.5)
-t.plan_sine_path(num=10)
+t.generate_obstacles(5, 0.5)
+t.plan_sine_path(num=20, amplitude=2, frequency=3)
 t.active_task = t.run_apf
 
 t.start_sim()

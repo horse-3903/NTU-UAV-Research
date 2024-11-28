@@ -211,5 +211,5 @@ class TelloDrone:
         self.active_task = partial(time.sleep, 1)
         self.active_img_task = partial(self.run_depth_model, manual=True)
         
-        # self.startup(display=display)
-        self.startup_video()
+        self.startup(display=display)
+        # self.startup_video()

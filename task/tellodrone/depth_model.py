@@ -37,7 +37,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         
         self.logger.info("Processing Obstacles")
         real_obstacles, pixel_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth)
-        # real_obstacles = [(obs + self.cur_pos, radius) for obs, radius in real_obstacles]
+        real_obstacles = [(obs + self.cur_pos, radius) for obs, radius in real_obstacles]
         
         self.logger.info("Updating Obstacles")
         # self.obstacles =

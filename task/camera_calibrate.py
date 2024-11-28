@@ -79,7 +79,7 @@ def undistort_images(image_dir: str, camera_matrix: np.ndarray, dist_coeffs: np.
 # Main Function
 if __name__ == "__main__":
     # Calibrate the camera
-    camera_matrix, dist_coeffs = calibrate_camera("calibrate/img/2024-11-26_10-38-17", (9, 7))
+    camera_matrix, dist_coeffs = calibrate_camera("calibrate", (9, 7))
 
     # Undistort the calibration images
     _ = undistort_images("calibrate/img/2024-11-26_10-38-17", camera_matrix, dist_coeffs)

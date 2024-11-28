@@ -175,17 +175,17 @@ class TelloDroneSim:
             print(f"Moving to next waypoint: {waypoint}")
 
         # Calculate forces using APF
-        total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
+        total_force, heading_angle, attract_force, repel_force = apf(
             cur_pos=self.cur_pos,
             target_pos=waypoint,  # Use current waypoint as target
             obstacles=self.obstacles,
             attract_coeff=self.attract_coeff,
             repel_coeff=self.repel_coeff,
             influence_dist=self.influence_dist,
-            x_bounds=self.x_bounds,
-            y_bounds=self.y_bounds,
-            z_bounds=self.z_bounds,
-            bounds_influence_dist=self.bounds_influence_dist
+            # x_bounds=self.x_bounds,
+            # y_bounds=self.y_bounds,
+            # z_bounds=self.z_bounds,
+            # bounds_influence_dist=self.bounds_influence_dist
         )
 
         # Debugging info
@@ -227,7 +227,7 @@ class TelloDroneSim:
             visual_shape_id = pybullet.createVisualShape(
                 shapeType=pybullet.GEOM_SPHERE,
                 radius=0.1,
-                rgbaColor=[1, 0, 0, 0.3]
+                rgbaColor=[1, 0, 0, 0.5]
             )
             pybullet.createMultiBody(
                 baseMass=0,
@@ -251,7 +251,7 @@ class TelloDroneSim:
             )
             pybullet.createMultiBody(
                 baseMass=0,
-                baseCollisionShapeIndex=collision_shape_id,
+                baseCollisionShapeIndex=-1,
                 baseVisualShapeIndex=visual_shape_id,
                 basePosition=center
             )

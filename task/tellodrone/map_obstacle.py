@@ -20,7 +20,7 @@ intrinsics = {
     "c_y": camera_matrix[1, 2],  # Principal point y-coordinate (image center)
 }
 
-def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percentage_threshold: float = 0.85, min_area: int = 20000) -> List[Tuple[Vector3D, float]]:
+def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percentage_threshold: float = 0.95, min_area: int = 20000) -> List[Tuple[Vector3D, float]]:
     if not threshold_value:
         threshold_value = max(70, np.mean(depth_frame))
     
