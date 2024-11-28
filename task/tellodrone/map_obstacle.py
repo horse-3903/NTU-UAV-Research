@@ -20,20 +20,45 @@ intrinsics = {
     "c_y": camera_matrix[1, 2],  # Principal point y-coordinate (image center)
 }
 
-def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percentage_threshold: float = 0.95, min_area: int = 20000) -> List[Tuple[Vector3D, float]]:
-    if not threshold_value:
-        threshold_value = max(70, np.mean(depth_frame))
-    
-    _, thresholded_image = cv2.threshold(depth_frame, threshold_value, 255, cv2.THRESH_BINARY_INV)
+def segment_depth_values(depth_map: np.ndarray, num_clusters: int = 5) -> Tuple[np.ndarray, np.ndarray]:
+    # Flatten the depth map and normalize values
+    depth_values = depth_map.flatten().astype(np.float32)
 
-    for row_idx in range(thresholded_image.shape[0]):
-        black_pixels = np.sum(thresholded_image[row_idx, :] == 255)
-        total_pixels = thresholded_image.shape[1]
+    # Apply k-means clustering
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+    _, labels, centers = cv2.kmeans(depth_values, num_clusters, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+
+    # Reshape labels back to the shape of the depth map
+    clustered_depth_map = labels.reshape(depth_map.shape)
+
+    return clustered_depth_map, centers
+
+
+def visualise_clusters(clustered_map: np.ndarray, centers: np.ndarray) -> np.ndarray:
+    # Map each cluster ID to a grayscale value
+    depth_visualisation = np.zeros_like(clustered_map, dtype=np.uint8)
+
+    for idx, center in enumerate(centers):
+        depth_visualisation[clustered_map == idx] = int((center - centers.min()) / (centers.max() - centers.min()) * 255)
+
+    return depth_visualisation
+
+
+def threshold_segment_rows(image: np.ndarray, percentage_threshold: float) -> np.ndarray:    
+    for row_idx in range(image.shape[0]):
+        black_pixels = np.sum(image[row_idx, :] == 0)
+        total_pixels = image.shape[1]
         percentage = black_pixels / total_pixels
         if percentage >= percentage_threshold:
-            thresholded_image[row_idx, :] = 0
+            image[row_idx, :] = 255
+            
+    _, image = cv2.threshold(image, np.min(image), 255, cv2.THRESH_BINARY_INV)
+    
+    return image
 
-    contours, _ = cv2.findContours(thresholded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+def find_obstacles(image: np.ndarray, min_area: float = 1000) -> List[Tuple[Tuple[float, float], float]]:
+    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     filtered_contours = [contour for contour in contours if cv2.contourArea(contour) > min_area]
 
     results = []
@@ -44,7 +69,7 @@ def find_obstacles(depth_frame: np.ndarray, threshold_value: int = None, percent
             centroid_y = int(moments["m01"] / moments["m00"])
             _, radius = cv2.minEnclosingCircle(contour)
             radius = int(radius)
-            results.append([(centroid_x, centroid_y), radius])
+            results.append(((centroid_x, centroid_y), radius))
     return results
 
 def undistort_coordinates(x: int, y: int, image: np.ndarray) -> Tuple[int, int]:
@@ -63,35 +88,42 @@ def get_3d_position(centroid: Tuple[int, int], absolute_depth: np.ndarray) -> Tu
     return X, Y, Z
 
 def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[float, float], float]]]:
-    try:
-        obstacles = find_obstacles(relative_depth)
-        real_res = []
-        pixel_res = []
+    clustered_map, centers = segment_depth_values(absolute_depth, num_clusters=6)
+    depth_map = visualise_clusters(clustered_map, centers=centers)
+    depth_map = threshold_segment_rows(depth_map, percentage_threshold=0.7)
+    
+    obstacles = find_obstacles(depth_map)
+    real_res = []
+    pixel_res = []
 
-        for obstacle in obstacles:
-            centroid, radius_pixels = obstacle
-            undistorted_x, undistorted_y = undistort_coordinates(*centroid, image)
+    for obstacle in obstacles:
+        centroid, radius_pixels = obstacle
+        undistorted_x, undistorted_y = undistort_coordinates(*centroid, image)
 
-            # Get depth at the centroid
-            depth = absolute_depth[centroid[1], centroid[0]]
+        # Get depth at the centroid
+        depth = absolute_depth[centroid[1], centroid[0]]
 
-            # Convert radius to global scale (meters)
-            radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
+        # Convert radius to global scale (meters)
+        radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
 
-            # Get 3D position of the obstacle
-            X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth)
+        # Get 3D position of the obstacle
+        X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth)
 
-            real_res.append((Vector3D(X, Y, Z), radius_meters))
-            pixel_res.append((centroid, radius_pixels))
-    except:
-        traceback.print_exc()
+        real_res.append((Vector3D(X, Y, Z), radius_meters))
+        pixel_res.append((centroid, radius_pixels))
 
     return real_res, pixel_res
 
-def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float) -> List[Tuple[Vector3D, float]]:
+def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float, x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float]) -> List[Tuple[Vector3D, float]]:
     updated_obs = cur_obs.copy()
 
     for new_center, new_radius in new_obs:
+        # Check bounds for the new obstacle
+        if not (x_bounds[0] <= new_center.x <= x_bounds[1] and
+                y_bounds[0] <= new_center.y <= y_bounds[1] and
+                z_bounds[0] <= new_center.z <= z_bounds[1]):
+            continue
+
         intersected = False
 
         for idx, (cur_center, cur_radius) in enumerate(cur_obs):
@@ -148,7 +180,7 @@ def find_checkerboard_position(image: np.ndarray, absolute_depth: np.ndarray, ch
     positions_3d = []
     for corner in undistorted_corners:
         x, y = int(corner[0]), int(corner[1])
-        depth = np.mean(absolute_depth[y-2 : y+3, x-2 : x+3])  # Average depth
+        depth = np.mean(absolute_depth[y-2 : y+3, x-2 : x+3])
 
         # Skip invalid depth points
         if depth == 0 or np.isnan(depth):

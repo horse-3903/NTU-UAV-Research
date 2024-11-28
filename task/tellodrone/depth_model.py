@@ -22,14 +22,14 @@ def load_depth_model(self: "TelloDrone") -> None:
 
 # vid_task
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    if manual or self.frame_idx % 100 == 0:
+    if manual or self.frame_idx % 200 == 0:
         self.logger.critical("Depth Model Running")
         cur_frame_idx = self.frame_idx
         cur_frame = self.cur_frame
         
         with open(self.log_pos_file, "r") as f:
             data = f.read().splitlines()
-            data = [Vector3D(*map(float, line.split()[2:])) for line in data]
+            data = [Vector3D(*map(float, line.split()[3:])) for line in data]
             data = data[-100:]
             
         avg_x = sum(d.x for d in data) / len(data)
@@ -49,7 +49,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         real_obstacles = [(obs + cur_pos, radius) for obs, radius in real_obstacles]
         
         self.logger.info("Updating Obstacles")
-        self.obstacles = update_obstacles(self.obstacles, real_obstacles, threshold=0.7)
+        self.obstacles = update_obstacles(cur_obs=self.obstacles, new_obs=real_obstacles, threshold=1.0, x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
 
         # self.logger.info("Finding checkerboard location")
         # annotated, pos_3d = find_checkerboard_position(image=cur_frame, absolute_depth=absolute_depth, checkerboard_size=(9, 7))
@@ -57,9 +57,10 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
 
         self.logger.info("Saving images")
         
-        cv2.imwrite(f"img/manual/{self.init_time}/frame-{cur_frame_idx}.png", cur_frame)
+        cv2.imwrite(f"img/original/{self.init_time}/frame-{cur_frame_idx}.png", cur_frame)
         
         annotated = draw_obstacles(cur_frame, real_obstacles, pixel_obstacles)
+        
         cv2.imwrite(f"img/depth/{self.init_time}/frame-{cur_frame_idx}.png", relative_depth)
         cv2.imwrite(f"img/annotated/{self.init_time}/frame-{cur_frame_idx}.png", annotated)
         

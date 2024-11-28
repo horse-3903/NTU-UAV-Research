@@ -181,10 +181,14 @@ class TelloDrone:
         
         self.logger.info("Landing Drone")
         self.drone.backward(0)
+        
         self.drone.land()
         
         self.logger.info("Waiting for tasks to finish...")
         self.logger.info("Shutting down drone and ROS node")
+        
+        self.display_running = False
+        self.stop_video_thread()
         
         pygame.quit()
         self.drone.quit()
@@ -194,9 +198,6 @@ class TelloDrone:
             self.logger.critical(reason)
         else:
             self.logger.info(reason if reason else "Objective Completed")
-        
-        self.display_running = False
-        self.stop_video_thread()
         
         sys.exit(0)
         

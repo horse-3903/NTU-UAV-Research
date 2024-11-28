@@ -87,13 +87,6 @@ def create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos
     mid_y = (max(Y) + min(Y)) / 2
     mid_z = (max(Z) + min(Z)) / 2
 
-    # Draw a horizontal plane at the height of takeoff_pos[2]
-    x_min, x_max = mid_x - max_range / 2, mid_x + max_range / 2
-    y_min, y_max = mid_y - max_range / 2, mid_y + max_range / 2
-    x_plane, y_plane = np.meshgrid(np.linspace(x_min, x_max, 50), np.linspace(y_min, y_max, 50))
-    z_plane = np.full_like(x_plane, takeoff_pos[2])
-    ax_3d.plot_surface(x_plane, y_plane, z_plane, color='grey', alpha=0.2)
-
     # Set equal scaling for all axes
     ax_3d.set_box_aspect([1, 1, 1])
     ax_3d.set_xlim(mid_x - max_range / 2, mid_x + max_range / 2)
