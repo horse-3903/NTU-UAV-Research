@@ -98,6 +98,7 @@ class TelloDrone:
         self.model_name = "model/zoedepth-nyu-kitti"
         self.image_processor: ZoeDepthImageProcessor = None
         self.depth_model: ZoeDepthForDepthEstimation = None
+        self.depth_model_run = False
 
         
     # importing functions

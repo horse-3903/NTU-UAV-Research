@@ -10,7 +10,7 @@ from typing import Tuple
 from typing import TYPE_CHECKING
 
 from vector import Vector3D
-from tellodrone.map_obstacle import process_obstacles, update_obstacles, draw_obstacles, find_checkerboard_position
+from tellodrone.map_obstacle import process_image, update_obstacles, draw_obstacles
 
 if TYPE_CHECKING:
     from tellodrone.core import TelloDrone
@@ -44,7 +44,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         absolute_depth, relative_depth = self.estimate_depth(img=cur_frame)
         
         self.logger.info("Processing Obstacles")
-        real_obstacles, pixel_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth)
+        real_obstacles, pixel_obstacles = process_image(cur_frame, absolute_depth, relative_depth)
         
         real_obstacles = [(obs + cur_pos, radius) for obs, radius in real_obstacles]
         
@@ -63,6 +63,8 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         
         cv2.imwrite(f"img/depth/{self.init_time}/frame-{cur_frame_idx}.png", relative_depth)
         cv2.imwrite(f"img/annotated/{self.init_time}/frame-{cur_frame_idx}.png", annotated)
+        
+        self.depth_model_run = True
         
         self.logger.info(f"Done with Depth Processing of Frame {cur_frame_idx}")
 

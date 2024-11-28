@@ -25,7 +25,7 @@ def follow_path(self: "TelloDrone") -> None:
     if not self.target_pos:
         self.logger.error("Path not planned. Call TelloDrone.plan_path() first.")
         
-    if len(self.obstacles) == 0:
+    if not self.depth_model_run:
         return
     
     local_delta = (self.cur_pos - self.target_pos).magnitude()

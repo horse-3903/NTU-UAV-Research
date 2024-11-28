@@ -12,107 +12,127 @@ calibration_data = np.load("calibration_data.npz")
 camera_matrix = calibration_data["camera_matrix"]
 dist_coeffs = calibration_data["dist_coeffs"]
 
-# Convert camera intrinsics for easier use
+# Extract camera intrinsics for easier use
 intrinsics = {
-    "f_x": camera_matrix[0, 0],  # Focal length in x-direction
-    "f_y": camera_matrix[1, 1],  # Focal length in y-direction
-    "c_x": camera_matrix[0, 2],  # Principal point x-coordinate (image center)
-    "c_y": camera_matrix[1, 2],  # Principal point y-coordinate (image center)
+    "f_x": camera_matrix[0, 0],  # Focal length x
+    "f_y": camera_matrix[1, 1],  # Focal length y
+    "c_x": camera_matrix[0, 2],  # Principal point x
+    "c_y": camera_matrix[1, 2],  # Principal point y
 }
 
-def segment_depth_values(depth_map: np.ndarray, num_clusters: int = 5) -> Tuple[np.ndarray, np.ndarray]:
-    # Flatten the depth map and normalize values
-    depth_values = depth_map.flatten().astype(np.float32)
+# Segment depth map into clusters
+def segment_depth(depth_map: np.ndarray, cluster_count: int = 5) -> Tuple[np.ndarray, np.ndarray]:
+    depth_values = depth_map.flatten().astype(np.float32)  # Flatten depth values
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)  # Clustering criteria
+    _, labels, centers = cv2.kmeans(depth_values, cluster_count, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)  # Apply k-means
+    clustered_map = labels.reshape(depth_map.shape)  # Reshape labels to original map shape
+    return clustered_map, centers
 
-    # Apply k-means clustering
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
-    _, labels, centers = cv2.kmeans(depth_values, num_clusters, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
-
-    # Reshape labels back to the shape of the depth map
-    clustered_depth_map = labels.reshape(depth_map.shape)
-
-    return clustered_depth_map, centers
-
-
-def visualise_clusters(clustered_map: np.ndarray, centers: np.ndarray) -> np.ndarray:
-    # Map each cluster ID to a grayscale value
-    depth_visualisation = np.zeros_like(clustered_map, dtype=np.uint8)
-
+# Visualize depth clusters
+def draw_clusters(clustered_map: np.ndarray, centers: np.ndarray) -> np.ndarray:
+    vis_map = np.zeros_like(clustered_map, dtype=np.uint8)  # Initialize visualization map
     for idx, center in enumerate(centers):
-        depth_visualisation[clustered_map == idx] = int((center - centers.min()) / (centers.max() - centers.min()) * 255)
+        vis_map[clustered_map == idx] = int((center - centers.min()) / (centers.max() - centers.min()) * 255)  # Normalize and map
+    return vis_map
 
-    return depth_visualisation
-
-
-def threshold_segment_rows(image: np.ndarray, percentage_threshold: float) -> np.ndarray:    
-    for row_idx in range(image.shape[0]):
-        black_pixels = np.sum(image[row_idx, :] == 0)
-        total_pixels = image.shape[1]
-        percentage = black_pixels / total_pixels
-        if percentage >= percentage_threshold:
-            image[row_idx, :] = 255
-            
-    _, image = cv2.threshold(image, np.min(image), 255, cv2.THRESH_BINARY_INV)
+# Segment rows based on white pixel density
+def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.95) -> np.ndarray:
+    row_counts = np.count_nonzero(binary_map, axis=1)  # Count non-zero pixels per row
+    max_count = max(row_counts)  # Get the max count
     
-    return image
-
-
-def find_obstacles(image: np.ndarray, min_area: float = 1000) -> List[Tuple[Tuple[float, float], float]]:
-    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    filtered_contours = [contour for contour in contours if cv2.contourArea(contour) > min_area]
-
-    results = []
-    for contour in filtered_contours:
-        moments = cv2.moments(contour)
-        if moments["m00"] != 0:
-            centroid_x = int(moments["m10"] / moments["m00"])
-            centroid_y = int(moments["m01"] / moments["m00"])
-            _, radius = cv2.minEnclosingCircle(contour)
-            radius = int(radius)
-            results.append(((centroid_x, centroid_y), radius))
-    return results
-
-def undistort_coordinates(x: int, y: int, image: np.ndarray) -> Tuple[int, int]:
-    height, width = image.shape[:2]
-    mapx, mapy = cv2.initUndistortRectifyMap(camera_matrix, dist_coeffs, None, camera_matrix, (width, height), 5)
-    undistorted_x = mapx[y, x]
-    undistorted_y = mapy[y, x]
-    return int(undistorted_x), int(undistorted_y)
-
-def get_3d_position(centroid: Tuple[int, int], absolute_depth: np.ndarray) -> Tuple[float, float, float]:
-    x, y = centroid
-    depth = np.mean(absolute_depth[y-2:y+3, x-2:x+3])
-    X = -depth
-    Y = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]
-    Z = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
-    return X, Y, Z
-
-def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[float, float], float]]]:
-    clustered_map, centers = segment_depth_values(absolute_depth, num_clusters=6)
-    depth_map = visualise_clusters(clustered_map, centers=centers)
-    depth_map = threshold_segment_rows(depth_map, percentage_threshold=0.7)
+    if max_count <= len(binary_map[0]) // 2:  # Skip if max is small
+        return binary_map
     
-    obstacles = find_obstacles(depth_map)
-    real_res = []
-    pixel_res = []
+    for row_idx in range(binary_map.shape[0]):  # Iterate through rows
+        white_count = np.sum(binary_map[row_idx, :] == 255)  # Count white pixels
+        if white_count >= max_count * threshold_ratio:  # Check threshold
+            binary_map[row_idx, :] = 0  # Clear row if above threshold
+    
+    return binary_map
 
-    for obstacle in obstacles:
-        centroid, radius_pixels = obstacle
-        undistorted_x, undistorted_y = undistort_coordinates(*centroid, image)
+# Remove small strips in the binary map
+def clean_binary(binary_map: np.ndarray, min_area: int = 400) -> np.ndarray:
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))  # Morphological kernel
+    opened_map = cv2.morphologyEx(binary_map, cv2.MORPH_OPEN, kernel)  # Apply morphological opening
+    
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(opened_map)  # Get connected components
+    clean_map = np.zeros_like(binary_map)  # Initialize output map
+    
+    for i in range(1, num_labels):  # Iterate through labels (skip background)
+        x, y, w, h, area = stats[i]  # Extract stats
+        if area > min_area:  # Check area threshold
+            clean_map[labels == i] = 255  # Retain large components
+    
+    return clean_map
 
-        # Get depth at the centroid
-        depth = absolute_depth[centroid[1], centroid[0]]
+# Separate clusters into dark segments
+def extract_segments(clustered_map: np.ndarray, centers: np.ndarray, dark_count: int = 2) -> List[np.ndarray]:
+    sorted_idxs = np.argsort(centers.flatten())  # Sort centers by depth
+    dark_idxs = sorted_idxs[:dark_count]  # Select darkest cluster indices
+    segments = []
+    
+    for cluster_idx in dark_idxs:  # Iterate through dark clusters
+        segment = np.zeros_like(clustered_map, dtype=np.uint8)  # Initialize segment map
+        segment[clustered_map == cluster_idx] = 255  # Extract cluster
+        filtered = filter_rows(segment)  # Filter rows
+        clean = clean_binary(filtered)  # Clean map
+        segments.append(clean)
+    
+    return segments
 
-        # Convert radius to global scale (meters)
-        radius_meters = (radius_pixels * depth) / intrinsics["f_x"]
+# Detect obstacles in binary maps
+def detect_obstacles(binary_map: np.ndarray, min_area: float = 1000) -> List[Tuple[Tuple[int, int], float]]:
+    contours, _ = cv2.findContours(binary_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Get contours
+    obstacles = []
+    
+    for contour in contours:  # Iterate through contours
+        if cv2.contourArea(contour) > min_area:  # Check area threshold
+            moments = cv2.moments(contour)  # Get moments
+            if moments["m00"] != 0:  # Avoid division by zero
+                centroid_x = int(moments["m10"] / moments["m00"])  # Compute x centroid
+                centroid_y = int(moments["m01"] / moments["m00"])  # Compute y centroid
+                _, radius = cv2.minEnclosingCircle(contour)  # Get enclosing circle radius
+                obstacles.append(((centroid_x, centroid_y), radius))  # Add to obstacles list
+    
+    return obstacles
 
-        # Get 3D position of the obstacle
-        X, Y, Z = get_3d_position((undistorted_x, undistorted_y), absolute_depth)
+# Undistort coordinates based on camera calibration
+def undistort_point(x: int, y: int, img: np.ndarray) -> Tuple[int, int]:
+    h, w = img.shape[:2]  # Get image dimensions
+    map_x, map_y = cv2.initUndistortRectifyMap(camera_matrix, dist_coeffs, None, camera_matrix, (w, h), 5)  # Undistort map
+    return int(map_x[y, x]), int(map_y[y, x])  # Return undistorted coordinates
 
-        real_res.append((Vector3D(X, Y, Z), radius_meters))
-        pixel_res.append((centroid, radius_pixels))
+# Compute 3D position from 2D pixel and depth
+def compute_3d(pos: Tuple[int, int], abs_depth: np.ndarray) -> Tuple[float, float, float]:
+    x, y = pos  # Extract pixel coordinates
+    depth = np.mean(abs_depth[y - 2 : y + 3, x - 2 : x + 3])  # Compute mean depth around pixel
+    x_world = -depth  # Compute x world
+    y_world = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]  # Compute y world
+    z_world = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]  # Compute z world
+    return x_world, y_world, z_world
 
-    return real_res, pixel_res
+# Process image to detect obstacles
+def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[int, int], float]]]:
+    clustered_map, centers = segment_depth(abs_depth, cluster_count=4)  # Segment depth map
+    cluster_segments = extract_segments(clustered_map, centers, dark_count=2)  # Extract segments
+    detected_obstacles = []
+    
+    for segment in cluster_segments:  # Process each segment
+        detected_obstacles.extend(detect_obstacles(segment))  # Detect obstacles
+    
+    real_obstacles = []
+    pixel_obstacles = []
+
+    for obstacle in detected_obstacles:  # Process each detected obstacle
+        centroid, radius_px = obstacle  # Get centroid and radius
+        undist_x, undist_y = undistort_point(*centroid, image)  # Undistort centroid
+        radius_m = (radius_px * abs_depth[centroid[1], centroid[0]]) / intrinsics["f_x"]  # Convert to meters
+        pos_3d = compute_3d((undist_x, undist_y), abs_depth)  # Compute 3D position
+        real_obstacles.append((Vector3D(*pos_3d), radius_m))  # Append real obstacle
+        pixel_obstacles.append((centroid, int(radius_px)))  # Append pixel obstacle
+    
+    return real_obstacles, pixel_obstacles  # Return obstacles
+
 
 def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float, x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float]) -> List[Tuple[Vector3D, float]]:
     updated_obs = cur_obs.copy()
@@ -145,55 +165,16 @@ def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[
 
     return updated_obs
 
-def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float]], pixel_obstacles: List[Tuple[Tuple[float, float], float]]):
-    for idx in range(len(real_obstacles)):
+
+def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float]], pixel_obstacles: List[Tuple[Tuple[int, int], float]]) -> np.ndarray:
+    output = image.copy()
+    for idx, real_obstacle in enumerate(real_obstacles):
+        position, radius_meters = real_obstacle
         centroid, radius_pixels = pixel_obstacles[idx]
-        position, radius_meters = real_obstacles[idx]
+        cv2.circle(output, centroid, radius_pixels, (255, 0, 0), 2)
+        cv2.circle(output, centroid, 5, (255, 0, 0), -1)
         
-        cv2.circle(image, centroid, radius_pixels, (255, 0, 0), 2)
+        cv2.putText(output, f"({position.x:.2f}, {position.y:.2f}, {position.z:.2f})", (centroid[0] + 5, centroid[1] - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
+        cv2.putText(output, f"Radius: {radius_meters:.2f} m", (centroid[0] + 5, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
         
-        cv2.circle(image, centroid, 5, (255, 0, 0), -1)
-        
-        cv2.putText(image, f"({position.x:.2f}, {position.y:.2f}, {position.z:.2f})", (centroid[0] + 5, centroid[1] - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
-        cv2.putText(image, f"Radius: {radius_meters:.2f} m", (centroid[0] + 5, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
-
-    return image
-
-def find_checkerboard_position(image: np.ndarray, absolute_depth: np.ndarray, checkerboard_size: Tuple[int, int]) -> Tuple[np.ndarray, List[Tuple[float, float, float]]]:
-    annotated_image = image.copy()
-    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
-
-    # Detect the checkerboard corners
-    ret, corners = cv2.findChessboardCorners(grayscale, checkerboard_size, None)
-
-    if not ret:
-        print("Checkerboard not found.")
-        return annotated_image, []
-
-    # Refine corner positions
-    corners = cv2.cornerSubPix(grayscale, corners, winSize=(11, 11), zeroZone=(-1, -1), criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
-
-    # Undistort corner points
-    undistorted_corners = cv2.undistortPoints(corners, camera_matrix, dist_coeffs, P=camera_matrix).reshape(-1, 2)
-
-    # Calculate 3D positions of the corners
-    positions_3d = []
-    for corner in undistorted_corners:
-        x, y = int(corner[0]), int(corner[1])
-        depth = np.mean(absolute_depth[y-2 : y+3, x-2 : x+3])
-
-        # Skip invalid depth points
-        if depth == 0 or np.isnan(depth):
-            continue
-
-        # Calculate 3D coordinates relative to the camera
-        X = -depth
-        Y = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]
-        Z = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
-
-        positions_3d.append((X, Y, Z))
-
-    # Draw detected checkerboard on the image
-    annotated_image = cv2.drawChessboardCorners(annotated_image, checkerboard_size, corners, ret)
-
-    return annotated_image, positions_3d
+    return output
