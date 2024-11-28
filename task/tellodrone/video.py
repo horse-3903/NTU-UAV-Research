@@ -82,7 +82,7 @@ def process_frame(self: "TelloDrone"):
     self.video_writer.write(self.cur_frame)
 
     # Process frame after a certain count to avoid unnecessary frame processing
-    if self.frame_idx < 100:
+    if self.frame_idx < 30:
         return
 
     if self.active_vid_task and (self.active_vid_task_thread is None or not self.active_vid_task_thread.is_alive()):

@@ -120,9 +120,6 @@ def main():
     config = load_config(log_dir)
     data = load_log_data(log_dir)
 
-    if not data or not config:
-        return
-
     # Unpack log data
     time, X, Y, Z = zip(*data)
 

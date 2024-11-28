@@ -1,10 +1,7 @@
-import os
 import numpy as np
 
 import cv2
 from PIL import Image
-
-from tellodrone.map_obstacle import find_obstacles
 
 import torch
 from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
@@ -12,6 +9,7 @@ from transformers import ZoeDepthForDepthEstimation, ZoeDepthImageProcessor
 from typing import Tuple
 from typing import TYPE_CHECKING
 
+from vector import Vector3D
 from tellodrone.map_obstacle import process_obstacles, update_obstacles, draw_obstacles, find_checkerboard_position
 
 if TYPE_CHECKING:
@@ -24,11 +22,21 @@ def load_depth_model(self: "TelloDrone") -> None:
 
 # vid_task
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    # (not manual and self.frame_idx % 150 == 0)
-    if manual:
-        self.logger.info("Depth Model Running")
+    if manual or self.frame_idx % 100 == 0:
+        self.logger.critical("Depth Model Running")
         cur_frame_idx = self.frame_idx
         cur_frame = self.cur_frame
+        
+        with open(self.log_pos_file, "r") as f:
+            data = f.read().splitlines()
+            data = [Vector3D(*map(float, line.split()[2:])) for line in data]
+            data = data[-100:]
+            
+        avg_x = sum(d.x for d in data) / len(data)
+        avg_y = sum(d.y for d in data) / len(data)
+        avg_z = sum(d.z for d in data) / len(data)
+        
+        cur_pos = Vector3D(avg_x, avg_y, avg_z)
         
         self.logger.info("Video frame captured")
         self.logger.info(f"Estimating depth of frame {self.frame_idx}")
@@ -37,11 +45,11 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         
         self.logger.info("Processing Obstacles")
         real_obstacles, pixel_obstacles = process_obstacles(cur_frame, absolute_depth, relative_depth)
-        real_obstacles = [(obs + self.cur_pos, radius) for obs, radius in real_obstacles]
+        
+        real_obstacles = [(obs + cur_pos, radius) for obs, radius in real_obstacles]
         
         self.logger.info("Updating Obstacles")
-        # self.obstacles =
-        test_obstacles = update_obstacles(self.obstacles, real_obstacles)
+        self.obstacles = update_obstacles(self.obstacles, real_obstacles, threshold=0.7)
 
         # self.logger.info("Finding checkerboard location")
         # annotated, pos_3d = find_checkerboard_position(image=cur_frame, absolute_depth=absolute_depth, checkerboard_size=(9, 7))

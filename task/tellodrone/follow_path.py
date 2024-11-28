@@ -19,23 +19,27 @@ def add_obstacle(self: "TelloDrone", obstacle: Tuple[Vector3D, float]):
     self.obstacles.append(obstacle)
 
     
-def follow_path(self: "TelloDrone") -> None:
+def follow_path(self: "TelloDrone") -> None:    
+    self.active_vid_task = self.run_depth_model
+    
     if not self.target_pos:
         self.logger.error("Path not planned. Call TelloDrone.plan_path() first.")
+        
+    if len(self.obstacles) == 0:
+        return
     
-    self.active_vid_task = self.run_depth_model
     local_delta = (self.cur_pos - self.target_pos).magnitude()
     
-    if local_delta <= 0.3:
+    if local_delta <= 0.40:
         self.logger.info("Drone has reached target")
         self.active_vid_task = None
         self.active_task = None
         self.shutdown(error=False, reason="Follow Path Task Complete")
     
     # to change
-    attract_coeff = 30
+    attract_coeff = 20
     repel_coeff = 10
-    influence_dist = 1.5
+    influence_dist = 1.0
     bounds_influence_dist = 0.5
     
     global_delta = (self.start_pos - self.target_pos).magnitude()

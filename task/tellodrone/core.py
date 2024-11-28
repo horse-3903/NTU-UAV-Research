@@ -39,7 +39,7 @@ class TelloDrone:
         self.running = False
         
         # bounds
-        self.x_bounds = (-0.75, 6.85)
+        self.x_bounds = (-0.85, 6.85)
         self.y_bounds = (0, 4.5)
         self.z_bounds = (-3.75, 0.0)
         self.obstacles: List[Tuple[Vector3D, float]] = []
@@ -128,10 +128,8 @@ class TelloDrone:
         self.setup_display()
 
 
-    def startup(self, display: bool) -> None:        
-        if self.target_pos.is_origin():
-            self.logger.warning("Target position is the origin. Aborting startup.")
-            self.shutdown(error=True, reason="Target position not set")
+    def startup(self, display: bool) -> None:   
+        self.check_bounds(x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
             
         self.logger.info("Loading Depth Model")
         self.load_depth_model()
@@ -179,9 +177,6 @@ class TelloDrone:
         
         self.logger.info(f"Shutting down all processes : {reason}")
         
-        self.display_running = False
-        self.stop_video_thread()
-        
         self.save_log_config()
         
         self.logger.info("Landing Drone")
@@ -200,16 +195,19 @@ class TelloDrone:
         else:
             self.logger.info(reason if reason else "Objective Completed")
         
+        self.display_running = False
+        self.stop_video_thread()
+        
         sys.exit(0)
         
     def run_objective(self, display: bool = False) -> None:
         self.setup_logging()
         self.logger.info("Running objective")
         
-        # self.active_task = self.follow_path
+        self.active_task = self.follow_path
         
-        self.active_task = partial(time.sleep, 1)
-        self.active_img_task = partial(self.run_depth_model, manual=True)
+        # self.active_task = partial(time.sleep, 1)
+        # self.active_img_task = partial(self.run_depth_model, manual=True)
         
         self.startup(display=display)
         # self.startup_video()

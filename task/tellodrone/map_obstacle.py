@@ -88,8 +88,8 @@ def process_obstacles(image: np.ndarray, absolute_depth: np.ndarray, relative_de
 
     return real_res, pixel_res
 
-def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]]) -> List[Tuple[Vector3D, float]]:
-    updated_obs = cur_obs.copy() 
+def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float) -> List[Tuple[Vector3D, float]]:
+    updated_obs = cur_obs.copy()
 
     for new_center, new_radius in new_obs:
         intersected = False
@@ -98,15 +98,17 @@ def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[
             # Calculate the distance between centers of the two spheres
             distance = (new_center - cur_center).magnitude()
 
-            # Check if the spheres intersect
-            if distance <= (new_radius + cur_radius):
-                # If they intersect, take the newer sphere
-                updated_obs[idx] = (new_center, new_radius)
-                intersected = True
-                break
+            # Check if the spheres intersect and the intersection depth exceeds the threshold
+            if distance < (new_radius + cur_radius):
+                intersection_depth = (new_radius + cur_radius) - distance
+                if intersection_depth > threshold:
+                    # Update with the newer sphere if the intersection threshold is exceeded
+                    updated_obs[idx] = (new_center, new_radius)
+                    intersected = True
+                    break
 
         if not intersected:
-            # If no intersection, add the new obstacle to the list
+            # If no significant intersection, add the new obstacle to the list
             updated_obs.append((new_center, new_radius))
 
     return updated_obs
