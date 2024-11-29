@@ -21,12 +21,11 @@ def add_obstacle(self: "TelloDrone", obstacle: Tuple[Vector3D, float]):
     
 def follow_path(self: "TelloDrone") -> None:    
     self.active_vid_task = self.run_depth_model
+    if not self.depth_model_run:
+        return
     
     if not self.target_pos:
         self.logger.error("Path not planned. Call TelloDrone.plan_path() first.")
-        
-    if not self.depth_model_run:
-        return
     
     local_delta = (self.cur_pos - self.target_pos).magnitude()
     
@@ -52,17 +51,17 @@ def follow_path(self: "TelloDrone") -> None:
     self.logger.debug(f"Global Delta : {global_delta}")
     self.logger.debug(f"Local Delta : {local_delta}")
     
-    total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
+    total_force, heading_angle, attract_force, repel_force = apf(
         cur_pos=self.cur_pos, 
         target_pos=self.target_pos, 
         obstacles=self.obstacles, 
         attract_coeff=attract_coeff, 
         repel_coeff=repel_coeff, 
         influence_dist=influence_dist,
-        x_bounds=self.x_bounds,
-        y_bounds=self.y_bounds,
-        z_bounds=self.z_bounds,
-        bounds_influence_dist=bounds_influence_dist
+        # x_bounds=self.x_bounds,
+        # y_bounds=self.y_bounds,
+        # z_bounds=self.z_bounds,
+        # bounds_influence_dist=bounds_influence_dist
     )
     
     scalar = 1

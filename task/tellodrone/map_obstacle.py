@@ -1,11 +1,14 @@
 import cv2
 import numpy as np
 
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 
 from vector import Vector3D
 
-import traceback
+from PIL import Image
+
+import torch
+from transformers import ZoeDepthImageProcessor, ZoeDepthForDepthEstimation
 
 # Load calibration data
 calibration_data = np.load("calibration_data.npz")
@@ -54,12 +57,12 @@ def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.95) -> np.nda
 
 
 # Remove small strips in the binary map
-def clean_binary(binary_map: np.ndarray, min_area: int = 400) -> np.ndarray:
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+def clean_binary(binary_map: np.ndarray, min_area: int = 10000) -> np.ndarray:
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
     opened_map = cv2.morphologyEx(binary_map, cv2.MORPH_OPEN, kernel)
     
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(opened_map)
-    clean_map = np.zeros_like(binary_map)  # Initialize output map
+    clean_map = np.zeros_like(binary_map)
     
     for i in range(1, num_labels):
         x, y, w, h, area = stats[i]
@@ -79,14 +82,14 @@ def extract_segments(clustered_map: np.ndarray, centers: np.ndarray, dark_count:
         segment = np.zeros_like(clustered_map, dtype=np.uint8)
         segment[clustered_map == cluster_idx] = 255
         filtered = filter_rows(segment)
-        clean = clean_binary(filtered)
+        clean = clean_binary(filtered, min_area=10000)
         segments.append(clean)
     
     return segments
 
 
 # Detect obstacles in binary maps
-def detect_obstacles(binary_map: np.ndarray, min_area: float = 1000) -> List[Tuple[Tuple[int, int], float]]:
+def detect_obstacles(binary_map: np.ndarray, min_area: float = 2500) -> List[Tuple[Tuple[int, int], float]]:
     contours, _ = cv2.findContours(binary_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Get contours
     obstacles = []
     
@@ -105,7 +108,7 @@ def detect_obstacles(binary_map: np.ndarray, min_area: float = 1000) -> List[Tup
 # Undistort coordinates based on camera calibration
 def undistort_point(x: int, y: int, img: np.ndarray) -> Tuple[int, int]:
     h, w = img.shape[:2]  # Get image dimensions
-    map_x, map_y = cv2.initUndistortRectifyMap(camera_matrix, dist_coeffs, None, camera_matrix, (w, h), 5)  # Undistort map
+    map_x, map_y = cv2.initUndistortRectifyMap(camera_matrix, dist_coeffs, None, camera_matrix, (w, h), 5)
     return int(map_x[y, x]), int(map_y[y, x])
 
 
@@ -114,13 +117,14 @@ def compute_3d(pos: Tuple[int, int], abs_depth: np.ndarray) -> Tuple[float, floa
     x, y = pos  # Extract pixel coordinates
     depth = np.mean(abs_depth[y - 2 : y + 3, x - 2 : x + 3])
     x_world = -depth
-    y_world = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"]
-    z_world = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"]
+    y_world = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"] - 0.6
+    z_world = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"] - 0.6
     return x_world, y_world, z_world
+
 
 # Process image to detect obstacles
 def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[int, int], float]]]:
-    clustered_map, centers = segment_depth(abs_depth, cluster_count=4)
+    clustered_map, centers = segment_depth(abs_depth, cluster_count=5)
     cluster_segments = extract_segments(clustered_map, centers, dark_count=2)
     detected_obstacles = []
     
@@ -133,19 +137,43 @@ def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[
     for obstacle in detected_obstacles:
         centroid, radius_px = obstacle
         undist_x, undist_y = undistort_point(*centroid, image)
+        
         radius_m = (radius_px * abs_depth[centroid[1], centroid[0]]) / intrinsics["f_x"]
         pos_3d = compute_3d((undist_x, undist_y), abs_depth)
+        
         real_obstacles.append((Vector3D(*pos_3d), radius_m))
         pixel_obstacles.append((centroid, int(radius_px)))
     
     return real_obstacles, pixel_obstacles
 
 
-def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float, x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float]) -> List[Tuple[Vector3D, float]]:
+def update_obstacles(
+    cur_obs: List[Tuple[Vector3D, float]],
+    new_obs: List[Tuple[Vector3D, float]],
+    threshold: float,
+    x_bounds: Tuple[float, float],
+    y_bounds: Tuple[float, float],
+    z_bounds: Tuple[float, float],
+) -> List[Tuple[Vector3D, float]]:
+    """
+    Updates the current list of obstacles by considering new obstacles.
+    An intersection occurs if the distance between two obstacles is less than or equal to the threshold.
+
+    Parameters:
+        cur_obs (List[Tuple[Vector3D, float]]): Current list of obstacles (position, radius).
+        new_obs (List[Tuple[Vector3D, float]]): New obstacles to evaluate (position, radius).
+        threshold (float): Maximum distance between obstacles to count as an intersection.
+        x_bounds (Tuple[float, float]): X-axis bounds (min, max).
+        y_bounds (Tuple[float, float]): Y-axis bounds (min, max).
+        z_bounds (Tuple[float, float]): Z-axis bounds (min, max).
+
+    Returns:
+        List[Tuple[Vector3D, float]]: Updated list of obstacles.
+    """
     updated_obs = cur_obs.copy()
 
     for new_center, new_radius in new_obs:
-        # Check bounds for the new obstacle
+        # Check if the new obstacle is within the specified bounds
         if not (x_bounds[0] <= new_center.x <= x_bounds[1] and
                 y_bounds[0] <= new_center.y <= y_bounds[1] and
                 z_bounds[0] <= new_center.z <= z_bounds[1]):
@@ -153,21 +181,19 @@ def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[
 
         intersected = False
 
-        for idx, (cur_center, cur_radius) in enumerate(cur_obs):
+        for idx, (cur_center, cur_radius) in enumerate(updated_obs):
             # Calculate the distance between centers of the two spheres
             distance = (new_center - cur_center).magnitude()
 
-            # Check if the spheres intersect and the intersection depth exceeds the threshold
-            if distance < (new_radius + cur_radius):
-                intersection_depth = (new_radius + cur_radius) - distance
-                if intersection_depth > threshold:
-                    # Update with the newer sphere if the intersection threshold is exceeded
-                    updated_obs[idx] = (new_center, new_radius)
-                    intersected = True
-                    break
+            # Check if the distance is less than or equal to the threshold
+            if distance <= threshold:
+                # Replace the current obstacle with the new one
+                updated_obs[idx] = (new_center, new_radius)
+                intersected = True
+                break
 
         if not intersected:
-            # If no significant intersection, add the new obstacle to the list
+            # Add the new obstacle if it doesn't intersect with any existing ones
             updated_obs.append((new_center, new_radius))
 
     return updated_obs
@@ -185,3 +211,39 @@ def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float
         cv2.putText(output, f"Radius: {radius_meters:.2f} m", (centroid[0] + 5, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
         
     return output
+
+if __name__ == "__main__":
+    model_name = "model/zoedepth-nyu-kitti"
+    image_name = "img/original/2024-11-29 10:50:56.252071/frame-200.png"
+    
+    print(f"Loading model from {model_name}")
+    image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
+    depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
+    
+    print(f"Loading image from {image_name}")
+    image = np.array(Image.open(image_name))
+    
+    print("Estimating Depth for Image")
+    pil_image = Image.fromarray(image)
+    inputs = image_processor.preprocess(images=pil_image, return_tensors="pt")
+    
+    with torch.no_grad():
+        outputs = depth_model.forward(inputs["pixel_values"])
+    
+    post_processed_output = image_processor.post_process_depth_estimation(
+        outputs, source_sizes=[(pil_image.height, pil_image.width)]
+    )
+    
+    absolute_depth = post_processed_output[0]["predicted_depth"]
+    relative_depth = (absolute_depth - absolute_depth.min()) / (absolute_depth.max() - absolute_depth.min())
+    
+    absolute_depth = absolute_depth.numpy()
+    relative_depth = (relative_depth.numpy() * 255).astype("uint8")
+    
+    real_obstacles, pixel_obstacles = process_image(image, absolute_depth)
+    
+    annotated = draw_obstacles(image, real_obstacles, pixel_obstacles)
+    
+    cv2.imshow("annotated", annotated)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows

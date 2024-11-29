@@ -134,6 +134,7 @@ def apf_with_bounds(
                 repulsion_magnitude = repel_coeff * (
                     (1.0 / distance_to_bound) - (1.0 / bounds_influence_dist)
                 ) * (1.0 / (distance_to_bound**2))
+                
                 repulsive_force = bound_direction * repulsion_magnitude
                 total_repulsive_force += repulsive_force
                 repulsive_potential += 0.5 * repel_coeff * (
