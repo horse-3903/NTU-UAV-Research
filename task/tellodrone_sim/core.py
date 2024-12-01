@@ -12,29 +12,32 @@ import math
 from simple_pid import PID
 
 from apf import apf, apf_with_bounds
+
 from vector import Vector3D
+
+import heapq
 
 class TelloDroneSim:
     def __init__(self):
         self.x_bounds = (-0.75, 6.85)
         self.y_bounds = (0, 4.5)
-        self.z_bounds = (-4.25, 0.0)
+        self.z_bounds = (-4.25, -1.25)
         
         self.start_pos = Vector3D(6.40, 2.35, -2.80)
         self.cur_pos = Vector3D(6.40, 2.35, -2.80)
-        self.target_pos = Vector3D(-0.20, 2.15, -1.85)
+        self.target_pos = Vector3D(-0.20, 2.15, -4.00)
         
         self.cur_orient = pybullet.getQuaternionFromEuler([1.57079632679, 0, 3.1415926536])
         
         self.cur_idx = 0
         
         self.obstacles = []
-        self.path = [self.start_pos, self.target_pos]
+        self.path = []
         self.pos = []
         
-        self.attract_coeff = 100
+        self.attract_coeff = 30
         self.repel_coeff = 10
-        self.influence_dist = 1.5
+        self.influence_dist = 0.5
         self.bounds_influence_dist = 0.5
         
         self.global_delta = (self.cur_pos - self.target_pos).magnitude()
@@ -48,16 +51,14 @@ class TelloDroneSim:
         if num < 2:
             raise ValueError("The number of waypoints must be at least 2.")
         
-        # Compute the direction vector and step size
         delta = (self.target_pos - self.start_pos)
         step_vector = delta / (num - 1)
         
-        # Create the sine path
         self.path = []
         for i in range(num):
-            t = i / (num - 1)  # Progress from 0 to 1
+            t = i / (num - 1)
             base_point = self.start_pos + step_vector * i
-            # Apply sine oscillation along the z-axis
+
             sine_offset = amplitude * math.sin(2 * math.pi * frequency * t)
             self.path.append(Vector3D(base_point.x, base_point.y + sine_offset, base_point.z))
     
@@ -89,69 +90,96 @@ class TelloDroneSim:
     def set_velocity(self, vel: Vector3D):
         pybullet.resetBaseVelocity(self.drone_id, vel.to_arr(), (0, 0, 0))
     
-    def run_apf_with_pid(self):
-        # Check if all waypoints are reached
-        if self.cur_idx >= len(self.path):
-            print("All waypoints reached!")
-            return
+    
+    def a_star_waypoints(self, grid_resolution=0.5):
+        """
+        Plans a series of waypoints using the A* algorithm for a grid-based environment.
+        Outputs waypoints in world coordinates for smooth path traversal.
+        :param grid_resolution: The resolution of the grid (distance between adjacent grid points).
+        """
+        # Convert bounds to grid points
+        x_steps = int((self.x_bounds[1] - self.x_bounds[0]) / grid_resolution) + 1
+        y_steps = int((self.y_bounds[1] - self.y_bounds[0]) / grid_resolution) + 1
+        z_steps = int((self.z_bounds[1] - self.z_bounds[0]) / grid_resolution) + 1
 
-        # Set the current waypoint as the target
-        waypoint = self.path[self.cur_idx]
-
-        # Initialize PID controllers for x, y, z axes
-        pid_x = PID(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=waypoint.x, output_limits=(-10, 10))
-        pid_y = PID(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=waypoint.y, output_limits=(-10, 10))
-        pid_z = PID(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=waypoint.z, output_limits=(-10, 10))
-
-        while True:
-            # Update APF forces
-            total_force, heading_angle, attract_force, repel_force = apf_with_bounds(
-                cur_pos=self.cur_pos,
-                target_pos=waypoint,
-                obstacles=self.obstacles,
-                attract_coeff=self.attract_coeff,
-                repel_coeff=self.repel_coeff,
-                influence_dist=self.influence_dist,
-                x_bounds=self.x_bounds,
-                y_bounds=self.y_bounds,
-                z_bounds=self.z_bounds,
-                bounds_influence_dist=self.bounds_influence_dist
+        # Helper to discretize a point to the grid
+        def to_grid(pos):
+            return (
+                int((pos.x - self.x_bounds[0]) / grid_resolution),
+                int((pos.y - self.y_bounds[0]) / grid_resolution),
+                int((pos.z - self.z_bounds[0]) / grid_resolution)
             )
 
-            # Debugging information
-            print("Attraction Force :", attract_force)
-            print("Repulsion Force :", repel_force)
-            print("Resultant Force :", total_force)
+        # Helper to convert grid coordinates back to world space
+        def to_world(grid_pos):
+            return Vector3D(
+                self.x_bounds[0] + grid_pos[0] * grid_resolution,
+                self.y_bounds[0] + grid_pos[1] * grid_resolution,
+                self.z_bounds[0] + grid_pos[2] * grid_resolution,
+            )
 
-            # Use PID controllers to update position based on APF output
-            control_x = pid_x(self.cur_pos.x + total_force.x)
-            control_y = pid_y(self.cur_pos.y + total_force.y)
-            control_z = pid_z(self.cur_pos.z + total_force.z)
+        # A* priority queue and costs
+        open_set = []
+        heapq.heappush(open_set, (0, to_grid(self.start_pos)))
+        came_from = {}
+        g_score = {to_grid(self.start_pos): 0}
+        f_score = {to_grid(self.start_pos): (self.start_pos - self.target_pos).magnitude()}
 
-            # Update the drone's position
-            self.cur_pos.x += control_x
-            self.cur_pos.y += control_y
-            self.cur_pos.z += control_z
-            self.set_position(self.cur_pos)
+        # Directions for movement in the grid (26 directions in 3D space)
+        directions = [
+            (dx, dy, dz)
+            for dx in [-1, 0, 1]
+            for dy in [-1, 0, 1]
+            for dz in [-1, 0, 1]
+            if not (dx == 0 and dy == 0 and dz == 0)
+        ]
 
-            # Debugging
-            print(f"Current Position: {self.cur_pos}")
-            print(f"Waypoint: {waypoint}")
-            print(f"Error Magnitude: {(self.cur_pos - waypoint).magnitude()}\n")
+        # Obstacles as grid positions
+        obstacle_grid = {to_grid(ob[0]) for ob in self.obstacles}
 
-            # Check if the waypoint is reached
-            if (self.cur_pos - waypoint).magnitude() < 0.1:  # Threshold for reaching waypoint
-                print(f"Waypoint {self.cur_idx} reached at position: {self.cur_pos}")
-                self.cur_idx += 1
-                if self.cur_idx >= len(self.path):
-                    print("All waypoints reached!")
-                    break
-                waypoint = self.path[self.cur_idx]
-                print(f"Moving to next waypoint: {waypoint}")
+        target_grid = to_grid(self.target_pos)
 
-            # Simulate time step
-            pybullet.stepSimulation()
-            time.sleep(0.05)
+        while open_set:
+            _, current = heapq.heappop(open_set)
+
+            # Check if target is reached
+            if current == target_grid:
+                # Reconstruct path
+                path = []
+                while current in came_from:
+                    path.append(to_world(current))
+                    current = came_from[current]
+                path.append(self.start_pos)  # Add the start position
+                self.path = path[::-1]  # Reverse path
+                return
+
+            for direction in directions:
+                neighbor = (
+                    current[0] + direction[0],
+                    current[1] + direction[1],
+                    current[2] + direction[2],
+                )
+
+                # Check if the neighbor is within bounds
+                if not (0 <= neighbor[0] < x_steps and 0 <= neighbor[1] < y_steps and 0 <= neighbor[2] < z_steps):
+                    continue
+
+                # Check if the neighbor is an obstacle
+                if neighbor in obstacle_grid:
+                    continue
+
+                # Calculate tentative g_score
+                tentative_g_score = g_score[current] + math.sqrt(
+                    direction[0]**2 + direction[1]**2 + direction[2]**2
+                )
+
+                if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = tentative_g_score + (to_world(neighbor) - self.target_pos).magnitude()
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+        raise ValueError("No path found to the target.")
 
     
     def run_apf(self):
@@ -165,27 +193,27 @@ class TelloDroneSim:
         local_delta = (self.cur_pos - waypoint).magnitude()
 
         # If close enough to the waypoint, move to the next
-        if local_delta <= 0.6:  # Threshold for reaching the waypoint
+        if local_delta <= 0.05:  # Threshold for reaching the waypoint
             print(f"Waypoint {self.cur_idx} reached at position: {self.cur_pos}")
             self.cur_idx += 1
             if self.cur_idx >= len(self.path):
-                print("All waypoints reached!")
+                print("All waypoints reached.")
                 return
             waypoint = self.path[self.cur_idx]
             print(f"Moving to next waypoint: {waypoint}")
 
         # Calculate forces using APF
-        total_force, heading_angle, attract_force, repel_force = apf(
+        total_force, attract_force, repel_force = apf_with_bounds(
             cur_pos=self.cur_pos,
-            target_pos=waypoint,  # Use current waypoint as target
+            target_pos=waypoint,
             obstacles=self.obstacles,
             attract_coeff=self.attract_coeff,
             repel_coeff=self.repel_coeff,
             influence_dist=self.influence_dist,
-            # x_bounds=self.x_bounds,
-            # y_bounds=self.y_bounds,
-            # z_bounds=self.z_bounds,
-            # bounds_influence_dist=self.bounds_influence_dist
+            x_bounds=self.x_bounds,
+            y_bounds=self.y_bounds,
+            z_bounds=self.z_bounds,
+            bounds_influence_dist=self.bounds_influence_dist
         )
 
         # Debugging info
@@ -194,7 +222,8 @@ class TelloDroneSim:
         print("Resultant Force :", total_force)
 
         # Compute velocity for the drone
-        scalar = 1
+        local_delta = max(local_delta, 0.1)  # Avoid division by zero
+        scalar = 1.0  # Tuning factor for velocity
         velocity_x = total_force.x / local_delta * scalar
         velocity_y = total_force.y / local_delta * scalar
         velocity_z = total_force.z / local_delta * scalar
@@ -237,7 +266,7 @@ class TelloDroneSim:
             )
         
         # Draw translucent boundary walls
-        boundary_color = [255, 255, 255, 0.25]  # RGBA with alpha for translucency
+        boundary_color = [255, 255, 255, 0.15]  # RGBA with alpha for translucency
 
         def create_wall(center, size):
             visual_shape_id = pybullet.createVisualShape(

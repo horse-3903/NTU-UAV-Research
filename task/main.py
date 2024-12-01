@@ -30,7 +30,7 @@ def main():
 
     rospy.Subscriber('/nlink_linktrack_nodeframe1', LinktrackNodeframe1, linktrack_callback, queue_size=1)
 
-    tello.set_target_pos(Vector3D(0.30, 1.75, -1.40))
+    tello.set_target_pos(Vector3D(-0.30, 1.75, -2.00))
     # tello.set_target_pos(Vector3D(5.95, 2.30, -0.85))
     
     # tello.add_obstacle((Vector3D(3.6054744958877567, 2.1556083091614027, -2.720276257489722), 0.5385408378125782))

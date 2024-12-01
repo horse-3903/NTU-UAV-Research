@@ -22,7 +22,11 @@ def load_depth_model(self: "TelloDrone") -> None:
 
 
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    if manual or self.cur_frame_idx % 240 == 0:
+    if (
+        manual or 
+        self.cur_frame_idx % 300 == 0
+        # self.cur_frame_idx == 200
+    ):
         self.logger.critical("Depth Model Running")
         cur_frame_idx = self.cur_frame_idx
         cur_frame = self.cur_frame

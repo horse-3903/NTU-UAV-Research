@@ -29,17 +29,18 @@ def follow_path(self: "TelloDrone") -> None:
     
     local_delta = (self.cur_pos - self.target_pos).magnitude()
     
-    if local_delta <= 0.40:
+    if local_delta <= 0.30:
         self.logger.info("Drone has reached target")
         self.active_vid_task = None
         self.active_task = None
+        self.drone.backward(0)
         self.shutdown(error=False, reason="Follow Path Task Complete")
     
     # to change
     attract_coeff = 30
     repel_coeff = 10
-    influence_dist = 1.0
-    bounds_influence_dist = 1.0
+    influence_dist = 0.5
+    bounds_influence_dist = 0.5
     
     global_delta = (self.start_pos - self.target_pos).magnitude()
     
@@ -51,17 +52,17 @@ def follow_path(self: "TelloDrone") -> None:
     self.logger.debug(f"Global Delta : {global_delta}")
     self.logger.debug(f"Local Delta : {local_delta}")
     
-    total_force, heading_angle, attract_force, repel_force = apf(
+    total_force, attract_force, repel_force = apf_with_bounds(
         cur_pos=self.cur_pos, 
         target_pos=self.target_pos, 
         obstacles=self.obstacles, 
         attract_coeff=attract_coeff, 
         repel_coeff=repel_coeff, 
         influence_dist=influence_dist,
-        # x_bounds=self.x_bounds,
-        # y_bounds=self.y_bounds,
-        # z_bounds=self.z_bounds,
-        # bounds_influence_dist=bounds_influence_dist
+        x_bounds=self.x_bounds,
+        y_bounds=self.y_bounds,
+        z_bounds=self.z_bounds,
+        bounds_influence_dist=bounds_influence_dist
     )
     
     scalar = 1

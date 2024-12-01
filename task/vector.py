@@ -44,8 +44,7 @@ class Vector3D:
         magnitude = self.magnitude()
         if magnitude != 0:
             return self / magnitude
-        else:
-            raise ValueError("Cannot normalize a zero vector.")
+        return Vector3D(0, 0, 0)
         
     def is_origin(self) -> bool:
         return self == Vector3D(0, 0, 0)

@@ -41,7 +41,7 @@ def draw_clusters(clustered_map: np.ndarray, centers: np.ndarray) -> np.ndarray:
 
 
 # Segment rows based on white pixel density
-def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.95) -> np.ndarray:
+def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.75) -> np.ndarray:
     row_counts = np.count_nonzero(binary_map, axis=1)
     max_count = max(row_counts)
     
@@ -57,7 +57,7 @@ def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.95) -> np.nda
 
 
 # Remove small strips in the binary map
-def clean_binary(binary_map: np.ndarray, min_area: int = 10000) -> np.ndarray:
+def clean_binary(binary_map: np.ndarray, min_area: int = 20000) -> np.ndarray:
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
     opened_map = cv2.morphologyEx(binary_map, cv2.MORPH_OPEN, kernel)
     
@@ -73,7 +73,7 @@ def clean_binary(binary_map: np.ndarray, min_area: int = 10000) -> np.ndarray:
 
 
 # Separate clusters into dark segments
-def extract_segments(clustered_map: np.ndarray, centers: np.ndarray, dark_count: int = 2) -> List[np.ndarray]:
+def extract_segments(clustered_map: np.ndarray, centers: np.ndarray, dark_count: int = 3) -> List[np.ndarray]:
     sorted_idxs = np.argsort(centers.flatten())
     dark_idxs = sorted_idxs[:dark_count]
     segments = []
@@ -82,25 +82,24 @@ def extract_segments(clustered_map: np.ndarray, centers: np.ndarray, dark_count:
         segment = np.zeros_like(clustered_map, dtype=np.uint8)
         segment[clustered_map == cluster_idx] = 255
         filtered = filter_rows(segment)
-        clean = clean_binary(filtered, min_area=10000)
+        clean = clean_binary(filtered)
         segments.append(clean)
     
     return segments
 
 
 # Detect obstacles in binary maps
-def detect_obstacles(binary_map: np.ndarray, min_area: float = 2500) -> List[Tuple[Tuple[int, int], float]]:
-    contours, _ = cv2.findContours(binary_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Get contours
+def detect_obstacles(binary_map: np.ndarray) -> List[Tuple[Tuple[int, int], float]]:
+    contours, _ = cv2.findContours(binary_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     obstacles = []
     
     for contour in contours:
-        if cv2.contourArea(contour) > min_area:
-            moments = cv2.moments(contour)
-            if moments["m00"] != 0:
-                centroid_x = int(moments["m10"] / moments["m00"])
-                centroid_y = int(moments["m01"] / moments["m00"])
-                _, radius = cv2.minEnclosingCircle(contour)
-                obstacles.append(((centroid_x, centroid_y), radius))
+        moments = cv2.moments(contour)
+        if moments["m00"] != 0:
+            centroid_x = int(moments["m10"] / moments["m00"])
+            centroid_y = int(moments["m01"] / moments["m00"])
+            _, radius = cv2.minEnclosingCircle(contour)
+            obstacles.append(((centroid_x, centroid_y), radius))
     
     return obstacles
 
@@ -116,26 +115,27 @@ def undistort_point(x: int, y: int, img: np.ndarray) -> Tuple[int, int]:
 def compute_3d(pos: Tuple[int, int], abs_depth: np.ndarray) -> Tuple[float, float, float]:
     x, y = pos  # Extract pixel coordinates
     depth = np.mean(abs_depth[y - 2 : y + 3, x - 2 : x + 3])
-    x_world = -depth
-    y_world = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"] - 0.6
-    z_world = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"] - 0.6
+    x_world = -depth - 0.4
+    y_world = (x - intrinsics["c_x"]) * depth / intrinsics["f_x"] - 0.4
+    z_world = (y - intrinsics["c_y"]) * depth / intrinsics["f_y"] - 0.4
     return x_world, y_world, z_world
 
 
 # Process image to detect obstacles
 def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[Vector3D, float]], List[Tuple[Tuple[int, int], float]]]:
     clustered_map, centers = segment_depth(abs_depth, cluster_count=5)
-    cluster_segments = extract_segments(clustered_map, centers, dark_count=2)
-    detected_obstacles = []
+    cluster_segments = extract_segments(clustered_map, centers, dark_count=3)
+    
+    obstacles = []
     
     for segment in cluster_segments:
-        detected_obstacles.extend(detect_obstacles(segment))
+        obstacles.extend(detect_obstacles(segment))
+        print(len(obstacles))
     
     real_obstacles = []
     pixel_obstacles = []
 
-    for obstacle in detected_obstacles:
-        centroid, radius_px = obstacle
+    for centroid, radius_px in obstacles:
         undist_x, undist_y = undistort_point(*centroid, image)
         
         radius_m = (radius_px * abs_depth[centroid[1], centroid[0]]) / intrinsics["f_x"]
@@ -147,29 +147,7 @@ def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[
     return real_obstacles, pixel_obstacles
 
 
-def update_obstacles(
-    cur_obs: List[Tuple[Vector3D, float]],
-    new_obs: List[Tuple[Vector3D, float]],
-    threshold: float,
-    x_bounds: Tuple[float, float],
-    y_bounds: Tuple[float, float],
-    z_bounds: Tuple[float, float],
-) -> List[Tuple[Vector3D, float]]:
-    """
-    Updates the current list of obstacles by considering new obstacles.
-    An intersection occurs if the distance between two obstacles is less than or equal to the threshold.
-
-    Parameters:
-        cur_obs (List[Tuple[Vector3D, float]]): Current list of obstacles (position, radius).
-        new_obs (List[Tuple[Vector3D, float]]): New obstacles to evaluate (position, radius).
-        threshold (float): Maximum distance between obstacles to count as an intersection.
-        x_bounds (Tuple[float, float]): X-axis bounds (min, max).
-        y_bounds (Tuple[float, float]): Y-axis bounds (min, max).
-        z_bounds (Tuple[float, float]): Z-axis bounds (min, max).
-
-    Returns:
-        List[Tuple[Vector3D, float]]: Updated list of obstacles.
-    """
+def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[Vector3D, float]], threshold: float, x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float]) -> List[Tuple[Vector3D, float]]:
     updated_obs = cur_obs.copy()
 
     for new_center, new_radius in new_obs:
@@ -214,7 +192,7 @@ def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float
 
 if __name__ == "__main__":
     model_name = "model/zoedepth-nyu-kitti"
-    image_name = "img/original/2024-11-29 10:50:56.252071/frame-200.png"
+    image_name = "img/original/2024-11-29 16:58:48.628087/frame-300.png"
     
     print(f"Loading model from {model_name}")
     image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
@@ -246,4 +224,4 @@ if __name__ == "__main__":
     
     cv2.imshow("annotated", annotated)
     cv2.waitKey(0)
-    cv2.destroyAllWindows
+    cv2.destroyAllWindows()

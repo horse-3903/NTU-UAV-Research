@@ -2,31 +2,7 @@ import math
 from vector import Vector3D
 from typing import List, Tuple
 
-def apf(
-    cur_pos: Vector3D,
-    target_pos: Vector3D,
-    obstacles: List[Tuple[Vector3D, float]],
-    attract_coeff: float,
-    repel_coeff: float,
-    influence_dist: float,
-):
-    """
-    Artificial Potential Fields with 3D vector support.
-
-    Parameters:
-        cur_pos (Vector3D): Current position [x, y, z].
-        target_pos (Vector3D): Goal position [x, y, z].
-        obstacles (list[tuple[Vector3D, float]]): List of obstacles as (position, radius).
-        attract_coeff (float): Gain coefficient for the attractive field.
-        repel_coeff (float): Gain coefficient for the repulsive field.
-        influence_dist (float): Distance threshold for repulsion to be active.
-
-    Returns:
-        Vector3D: Velocity direction for the next step [x, y, z].
-        float: Heading angle in radians.
-        float: Magnitude of the attractive potential field.
-        float: Magnitude of the repulsive potential field.
-    """
+def apf(cur_pos: Vector3D, target_pos: Vector3D, obstacles: List[Tuple[Vector3D, float]], attract_coeff: float, repel_coeff: float, influence_dist: float):
     # Calculate the attractive force
     direction_to_goal = target_pos - cur_pos
     distance_to_goal = direction_to_goal.magnitude()
@@ -34,7 +10,7 @@ def apf(
     attractive_potential = 0.5 * attract_coeff * (distance_to_goal**2)
 
     # Calculate the repulsive force
-    total_repulsive_force = Vector3D(0, 0, 0)
+    repulsive_force = Vector3D(0, 0, 0)
     repulsive_potential = 0
 
     for obstacle_pos, obstacle_radius in obstacles:
@@ -45,20 +21,23 @@ def apf(
             repulsion_magnitude = repel_coeff * (
                 (1.0 / distance_to_obstacle) - (1.0 / influence_dist)
             ) * (1.0 / (distance_to_obstacle**2))
-            repulsive_force = direction_to_obstacle.normalize() * repulsion_magnitude
-            total_repulsive_force += repulsive_force
+            repulsive_force += direction_to_obstacle.normalize() * repulsion_magnitude
             repulsive_potential += 0.5 * repel_coeff * (
                 (1.0 / distance_to_obstacle) - (1.0 / influence_dist)
             )**2
 
     # Calculate the total force
-    total_force = attractive_force + total_repulsive_force
+    total_force = attractive_force + repulsive_force
 
     # Calculate heading angle
     heading_angle = math.atan2(total_force.y, total_force.x)
 
     # Return velocity direction, heading angle, and potential values
-    return total_force, heading_angle, attractive_potential, repulsive_potential
+    return (
+        total_force,
+        attractive_force,
+        repulsive_force,
+    )
 
 def apf_with_bounds(
     cur_pos: Vector3D,
@@ -72,38 +51,15 @@ def apf_with_bounds(
     z_bounds: Tuple[float, float],
     bounds_influence_dist: float,
 ):
-    """
-    Artificial Potential Fields with 3D vector support and boundary repulsion.
-
-    Parameters:
-        cur_pos (Vector3D): Current position [x, y, z].
-        target_pos (Vector3D): Goal position [x, y, z].
-        obstacles (list[tuple[Vector3D, float]]): List of obstacles as (position, radius).
-        attract_coeff (float): Gain coefficient for the attractive field.
-        repel_coeff (float): Gain coefficient for the repulsive field.
-        influence_dist (float): Distance threshold for repulsion to be active.
-        x_bounds (tuple[float, float]): X-axis bounds (min, max).
-        y_bounds (tuple[float, float]): Y-axis bounds (min, max).
-        z_bounds (tuple[float, float]): Z-axis bounds (min, max).
-        bounds_influence_dist (float): Distance threshold for bounds repulsion to be active.
-
-    Returns:
-        Vector3D: Velocity direction for the next step [x, y, z].
-        float: Heading angle in radians.
-        float: Magnitude of the attractive potential field.
-        float: Magnitude of the repulsive potential field.
-    """
     # Calculate the attractive force
-    direction_to_goal = target_pos - cur_pos
-    distance_to_goal = direction_to_goal.magnitude()
-    attractive_force = direction_to_goal.normalize() * (attract_coeff * distance_to_goal)
-    attractive_potential = 0.5 * attract_coeff * (distance_to_goal**2)
+    direction_to_target = target_pos - cur_pos
+    distance_to_target = direction_to_target.magnitude()
+    attractive_force = direction_to_target.normalize() * (attract_coeff * distance_to_target)
+    
+    # Initialize repulsive force and potential
+    repulsive_force = Vector3D(0, 0, 0)
 
-    # Calculate the repulsive force
-    total_repulsive_force = Vector3D(0, 0, 0)
-    repulsive_potential = 0
-
-    # Repulsion from obstacles
+    # Calculate repulsive force from obstacles
     for obstacle_pos, obstacle_radius in obstacles:
         direction_to_obstacle = cur_pos - obstacle_pos
         distance_to_obstacle = direction_to_obstacle.magnitude() - obstacle_radius
@@ -112,40 +68,42 @@ def apf_with_bounds(
             repulsion_magnitude = repel_coeff * (
                 (1.0 / distance_to_obstacle) - (1.0 / influence_dist)
             ) * (1.0 / (distance_to_obstacle**2))
-            repulsive_force = direction_to_obstacle.normalize() * repulsion_magnitude
-            total_repulsive_force += repulsive_force
-            repulsive_potential += 0.5 * repel_coeff * (
-                (1.0 / distance_to_obstacle) - (1.0 / influence_dist)
-            )**2
+            repulsive_force += direction_to_obstacle.normalize() * repulsion_magnitude
 
-    # Repulsion from bounds
-    bounds = [
-        (x_bounds[0], x_bounds[1], cur_pos.x, Vector3D(1, 0, 0)),
-        (y_bounds[0], y_bounds[1], cur_pos.y, Vector3D(0, 1, 0)),
-        (z_bounds[0], z_bounds[1], cur_pos.z, Vector3D(0, 0, 1)),
-    ]
-
-    for lower, upper, coord, axis_vector in bounds:
-        for boundary in [(lower, -axis_vector), (upper, axis_vector)]:
-            bound_pos, bound_direction = boundary
-            distance_to_bound = abs(coord - bound_pos)
-
+    # Calculate repulsive force from bounds
+    def calculate_bound_repulsion(coord, min_bound, max_bound, axis):
+        nonlocal repulsive_force
+        if coord < min_bound + bounds_influence_dist:
+            distance_to_bound = min_bound + bounds_influence_dist - coord
             if distance_to_bound < bounds_influence_dist:
                 repulsion_magnitude = repel_coeff * (
                     (1.0 / distance_to_bound) - (1.0 / bounds_influence_dist)
                 ) * (1.0 / (distance_to_bound**2))
-                
-                repulsive_force = bound_direction * repulsion_magnitude
-                total_repulsive_force += repulsive_force
-                repulsive_potential += 0.5 * repel_coeff * (
+                if axis == "x":
+                    repulsive_force += Vector3D(repulsion_magnitude, 0, 0)
+                elif axis == "y":
+                    repulsive_force += Vector3D(0, repulsion_magnitude, 0)
+                elif axis == "z":
+                    repulsive_force += Vector3D(0, 0, repulsion_magnitude)
+        elif coord > max_bound - bounds_influence_dist:
+            distance_to_bound = coord - (max_bound - bounds_influence_dist)
+            if distance_to_bound < bounds_influence_dist:
+                repulsion_magnitude = repel_coeff * (
                     (1.0 / distance_to_bound) - (1.0 / bounds_influence_dist)
-                )**2
+                ) * (1.0 / (distance_to_bound**2))
+                if axis == "x":
+                    repulsive_force += Vector3D(-repulsion_magnitude, 0, 0)
+                elif axis == "y":
+                    repulsive_force += Vector3D(0, -repulsion_magnitude, 0)
+                elif axis == "z":
+                    repulsive_force += Vector3D(0, 0, -repulsion_magnitude)
+
+    calculate_bound_repulsion(cur_pos.x, x_bounds[0], x_bounds[1], "x")
+    calculate_bound_repulsion(cur_pos.y, y_bounds[0], y_bounds[1], "y")
+    calculate_bound_repulsion(cur_pos.z, z_bounds[0], z_bounds[1], "z")
 
     # Calculate the total force
-    total_force = attractive_force + total_repulsive_force
+    total_force = attractive_force + repulsive_force
 
-    # Calculate heading angle
-    heading_angle = math.atan2(total_force.y, total_force.x)
-
-    # Return velocity direction, heading angle, and potential values
-    return total_force, heading_angle, attractive_potential, repulsive_potential
+    # Return total force, attractive force, and repulsive force
+    return total_force, attractive_force, repulsive_force

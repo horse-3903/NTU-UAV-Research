@@ -39,9 +39,9 @@ class TelloDrone:
         self.running = False
         
         # bounds
-        self.x_bounds = (-0.85, 6.85)
-        self.y_bounds = (0, 4.5)
-        self.z_bounds = (-3.75, 0.0)
+        self.x_bounds = (-0.85, 7.00)
+        self.y_bounds = (-0.85, 4.50)
+        self.z_bounds = (-3.75, -1.25)
         self.obstacles: List[Tuple[Vector3D, float]] = []
         
         # task
