@@ -39,18 +39,7 @@ def apf(cur_pos: Vector3D, target_pos: Vector3D, obstacles: List[Tuple[Vector3D,
         repulsive_force,
     )
 
-def apf_with_bounds(
-    cur_pos: Vector3D,
-    target_pos: Vector3D,
-    obstacles: List[Tuple[Vector3D, float]],
-    attract_coeff: float,
-    repel_coeff: float,
-    influence_dist: float,
-    x_bounds: Tuple[float, float],
-    y_bounds: Tuple[float, float],
-    z_bounds: Tuple[float, float],
-    bounds_influence_dist: float,
-):
+def apf_with_bounds(cur_pos: Vector3D, target_pos: Vector3D, obstacles: List[Tuple[Vector3D, float]], attract_coeff: float, repel_coeff: float, influence_dist: float, x_bounds: Tuple[float, float], y_bounds: Tuple[float, float], z_bounds: Tuple[float, float], bounds_influence_dist: float):
     # Calculate the attractive force
     direction_to_target = target_pos - cur_pos
     distance_to_target = direction_to_target.magnitude()

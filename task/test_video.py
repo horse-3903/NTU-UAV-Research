@@ -6,7 +6,7 @@ tello = TelloDrone()
 
 def main():
     tello.active_img_task = partial(tello.run_depth_model, manual=True)
-    tello.run_objective(display=True)
+    tello.run_calibration()
 
 if __name__ == "__main__":
     try:

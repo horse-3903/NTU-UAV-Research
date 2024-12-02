@@ -64,7 +64,7 @@ def create_2d_plots(fig, gs, time, X, Y, Z):
     # Adjust vertical spacing between the 2D plots
     plt.subplots_adjust(hspace=0.3)
 
-def create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos, obstacles):
+def create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos, obstacles, path):
     """Create a 3D plot with positions, obstacles, and a takeoff plane."""
     ax_3d = fig.add_subplot(gs[:, 1], projection='3d')  # Place the 3D plot in the second column
     ax_3d.plot(X, Y, Z, c='purple', alpha=0.6, marker='o', label="Path")
@@ -80,6 +80,11 @@ def create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos
         center = obstacle[0]
         radius = obstacle[1]
         draw_sphere(ax_3d, center=center, radius=radius, color="grey", alpha=0.2)
+        
+    # Plot waypoints as spheres
+    if path:
+        for waypoint in path:
+            draw_sphere(ax_3d, center=waypoint, radius=0.05, color="red", alpha=0.3)
         
     # Calculate midpoints
     max_range = max(max(X) - min(X), max(Y) - min(Y), max(Z) - min(Z))
@@ -122,6 +127,7 @@ def main():
     end_pos = config.get("end_pos", (0, 0, 0))
     target_pos = config.get("target_pos", (0, 0, 0))
     obstacles = config.get("obstacles", [])
+    path = config.get("path", [])
 
     # Create a figure with a custom layout
     fig = plt.figure(figsize=(18, 10))
@@ -131,7 +137,7 @@ def main():
     create_2d_plots(fig, gs, time, X, Y, Z)
 
     # Create 3D plot
-    create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos, obstacles)
+    create_3d_plot(fig, gs, X, Y, Z, takeoff_pos, start_pos, end_pos, target_pos, obstacles, path)
 
     # Adjust layout and show plots
     plt.tight_layout()

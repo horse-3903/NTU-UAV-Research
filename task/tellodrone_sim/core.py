@@ -92,11 +92,6 @@ class TelloDroneSim:
     
     
     def a_star_waypoints(self, grid_resolution=0.5):
-        """
-        Plans a series of waypoints using the A* algorithm for a grid-based environment.
-        Outputs waypoints in world coordinates for smooth path traversal.
-        :param grid_resolution: The resolution of the grid (distance between adjacent grid points).
-        """
         # Convert bounds to grid points
         x_steps = int((self.x_bounds[1] - self.x_bounds[0]) / grid_resolution) + 1
         y_steps = int((self.y_bounds[1] - self.y_bounds[0]) / grid_resolution) + 1

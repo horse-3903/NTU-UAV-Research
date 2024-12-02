@@ -39,16 +39,16 @@ class TelloDrone:
         self.running = False
         
         # bounds
-        self.x_bounds = (-0.85, 7.00)
-        self.y_bounds = (-0.85, 4.50)
-        self.z_bounds = (-3.75, -1.25)
+        self.x_bounds = (-0.50, 7.00)
+        self.y_bounds = (-0.50, 4.50)
+        self.z_bounds = (-3.75, -0.50)
         self.obstacles: List[Tuple[Vector3D, float]] = []
         
         # task
         self.active_task : Callable = None
 
         # run name
-        self.run_name = self.init_time.strftime('%d-%m-%Y_%H:%M:%S')
+        self.run_name = self.init_time.strftime('%Y-%m-%d_%H:%M:%S')
         
         # flight information
         self.altitude = 0
@@ -59,7 +59,7 @@ class TelloDrone:
         self.mode = 0
         
         # video 
-        self.vid_file = f"vid/vid-{self.run_name}"
+        self.vid_file = f"vid/raw/vid-{self.run_name}"
         self.video_thread = Thread()
         self.active_vid_task_thread = Thread()
         self.active_img_task_thread = Thread()
@@ -113,7 +113,7 @@ class TelloDrone:
     def startup_video(self) -> None:
         self.logger.info("Attempting to connect to the drone")
         self.drone.connect()
-        self.drone.wait_for_connection(10)
+        self.drone.wait_for_connection(10.0)
         
         self.logger.info("Loading Depth Model")
         self.load_depth_model()
@@ -123,23 +123,22 @@ class TelloDrone:
         
         while self.container is None:
             self.logger.info("Opening video stream from the drone")
+            self.drone.start_video()
             self.container = av.open(self.drone.get_video_stream())
             
         self.start_video_thread()
         self.setup_display()
 
 
-    def startup(self, display: bool) -> None:   
-        self.check_bounds(x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
-            
+    def startup(self, display: bool) -> None:            
         self.logger.info("Loading Depth Model")
         self.load_depth_model()
 
         self.logger.info("Starting up the TelloDrone")
-
+        
         self.logger.info("Attempting to connect to the drone")
         self.drone.connect()
-        self.drone.wait_for_connection(10)
+        self.drone.wait_for_connection(10.0)
         
         if not self.drone.connected:
             self.shutdown(error=True, reason="Drone not connected")
@@ -150,16 +149,17 @@ class TelloDrone:
         
         self.logger.info("Starting Drone Video")
         self.drone.start_video()
+
+        time.sleep(1)
         
         while self.container is None:
             self.logger.info("Opening video stream from the drone")
             self.container = av.open(self.drone.get_video_stream())
             
         self.start_video_thread()
+        
         if display:
             self.setup_display()
-            
-        time.sleep(2)
         
         self.takeoff_pos = self.cur_pos
 
@@ -220,3 +220,4 @@ class TelloDrone:
         # self.active_task = partial(time.sleep, 1)
         
         self.startup(display=display)
+        # self.startup_video()

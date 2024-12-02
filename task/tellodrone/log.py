@@ -56,7 +56,7 @@ def save_log_config(self: "TelloDrone") -> None:
         "start_pos": self.start_pos.to_arr(),
         "end_pos": self.cur_pos.to_arr(),
         "target_pos": self.target_pos.to_arr(),
-        "obstacles": [(obp.to_arr(), obr) for obp, obr in self.obstacles]
+        "obstacles": [(obp.to_arr(), obr) for obp, obr in self.obstacles],
     }
     
     with open(self.log_config_file, "w+") as f:

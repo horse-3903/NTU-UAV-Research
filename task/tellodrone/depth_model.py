@@ -22,11 +22,7 @@ def load_depth_model(self: "TelloDrone") -> None:
 
 
 def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
-    if (
-        manual or 
-        self.cur_frame_idx % 300 == 0
-        # self.cur_frame_idx == 200
-    ):
+    if (manual or self.cur_frame_idx % 250 == 0):
         self.logger.critical("Depth Model Running")
         cur_frame_idx = self.cur_frame_idx
         cur_frame = self.cur_frame
@@ -53,8 +49,7 @@ def run_depth_model(self: "TelloDrone", manual: bool = False) -> None:
         real_obstacles = [(obs + cur_pos, radius) for obs, radius in real_obstacles]
         
         self.logger.info("Updating Obstacles")
-        self.obstacles = update_obstacles(cur_obs=self.obstacles, new_obs=real_obstacles, threshold=1.0, x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
-        # self.obstacles.extend(real_obstacles)
+        self.obstacles = update_obstacles(cur_obs=self.obstacles, new_obs=real_obstacles, threshold=0.5, x_bounds=self.x_bounds, y_bounds=self.y_bounds, z_bounds=self.z_bounds)
 
         self.logger.info("Saving images")
         

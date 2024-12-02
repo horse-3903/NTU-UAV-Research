@@ -1,10 +1,13 @@
 import cv2
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 from typing import List, Tuple
 
 from vector import Vector3D
 
+import av
 from PIL import Image
 
 import torch
@@ -41,7 +44,7 @@ def draw_clusters(clustered_map: np.ndarray, centers: np.ndarray) -> np.ndarray:
 
 
 # Segment rows based on white pixel density
-def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.75) -> np.ndarray:
+def filter_rows(binary_map: np.ndarray, threshold_ratio: float = 0.85) -> np.ndarray:
     row_counts = np.count_nonzero(binary_map, axis=1)
     max_count = max(row_counts)
     
@@ -130,7 +133,6 @@ def process_image(image: np.ndarray, abs_depth: np.ndarray) -> Tuple[List[Tuple[
     
     for segment in cluster_segments:
         obstacles.extend(detect_obstacles(segment))
-        print(len(obstacles))
     
     real_obstacles = []
     pixel_obstacles = []
@@ -155,6 +157,9 @@ def update_obstacles(cur_obs: List[Tuple[Vector3D, float]], new_obs: List[Tuple[
         if not (x_bounds[0] <= new_center.x <= x_bounds[1] and
                 y_bounds[0] <= new_center.y <= y_bounds[1] and
                 z_bounds[0] <= new_center.z <= z_bounds[1]):
+            continue
+        
+        if new_radius > 1.0:
             continue
 
         intersected = False
@@ -192,36 +197,48 @@ def draw_obstacles(image: np.ndarray, real_obstacles: List[Tuple[Vector3D, float
 
 if __name__ == "__main__":
     model_name = "model/zoedepth-nyu-kitti"
-    image_name = "img/original/2024-11-29 16:58:48.628087/frame-300.png"
+    # image_name = "img/original/2024-11-29 16:58:48.628087/frame-300.png"
+    vid_name = "vid/success/vid-29-11-2024_16:24:38.avi"
     
-    print(f"Loading model from {model_name}")
+    print(f"Loading model from {model_name}...")
     image_processor = ZoeDepthImageProcessor.from_pretrained(model_name)
     depth_model = ZoeDepthForDepthEstimation.from_pretrained(model_name)
     
-    print(f"Loading image from {image_name}")
-    image = np.array(Image.open(image_name))
+    container = None
     
-    print("Estimating Depth for Image")
-    pil_image = Image.fromarray(image)
-    inputs = image_processor.preprocess(images=pil_image, return_tensors="pt")
+    while container is None:
+        container = av.open(vid_name)
     
-    with torch.no_grad():
-        outputs = depth_model.forward(inputs["pixel_values"])
-    
-    post_processed_output = image_processor.post_process_depth_estimation(
-        outputs, source_sizes=[(pil_image.height, pil_image.width)]
-    )
-    
-    absolute_depth = post_processed_output[0]["predicted_depth"]
-    relative_depth = (absolute_depth - absolute_depth.min()) / (absolute_depth.max() - absolute_depth.min())
-    
-    absolute_depth = absolute_depth.numpy()
-    relative_depth = (relative_depth.numpy() * 255).astype("uint8")
-    
-    real_obstacles, pixel_obstacles = process_image(image, absolute_depth)
-    
-    annotated = draw_obstacles(image, real_obstacles, pixel_obstacles)
-    
-    cv2.imshow("annotated", annotated)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    print("Starting video...")
+    for idx, frame in enumerate(container.decode(video=0)):
+        if idx < 200 or idx % 150:
+            print(f"Skipping frame : {idx}")
+            continue
+        
+        image = frame.to_ndarray(format="bgr24")
+        
+        print("Estimating Depth for Image...")
+        pil_image = Image.fromarray(image)
+        inputs = image_processor.preprocess(images=pil_image, return_tensors="pt")
+        
+        with torch.no_grad():
+            outputs = depth_model.forward(inputs["pixel_values"])
+        
+        post_processed_output = image_processor.post_process_depth_estimation(
+            outputs, source_sizes=[(pil_image.height, pil_image.width)]
+        )
+        
+        absolute_depth = post_processed_output[0]["predicted_depth"]
+        relative_depth = (absolute_depth - absolute_depth.min()) / (absolute_depth.max() - absolute_depth.min())
+        
+        absolute_depth = absolute_depth.numpy()
+        relative_depth = (relative_depth.numpy() * 255).astype("uint8")
+        
+        print("Processing Image...")
+        real_obstacles, pixel_obstacles = process_image(image, absolute_depth)
+        
+        print("Drawing Obstacles...")
+        annotated = draw_obstacles(image, real_obstacles, pixel_obstacles)
+        
+        print("Saving Image...")
+        cv2.imwrite(f"test/frame-{idx}.png", annotated)
