@@ -1,8 +1,5 @@
 import time
 
-import heapq
-import math
-
 from apf import apf, apf_with_bounds
 
 from typing import TYPE_CHECKING
@@ -35,13 +32,13 @@ def follow_path(self: "TelloDrone") -> None:
         return 
 
     # Potential field parameters
-    attract_coeff = 40
+    attract_coeff = 30
     repel_coeff = 10
-    influence_dist = 0.65
-    bounds_influence_dist = 0.65
+    influence_dist = 0.5
+    bounds_influence_dist = 0.5
 
     if local_delta < 1.0:
-        attract_coeff = max(7, attract_coeff * local_delta)
+        attract_coeff = max(10  , attract_coeff * local_delta)
 
     self.logger.debug(f"Current Position: {self.cur_pos}")
     self.logger.debug(f"Target Position: {self.target_pos}")
@@ -62,7 +59,7 @@ def follow_path(self: "TelloDrone") -> None:
     )
 
     scalar = 1
-    max_val = 40
+    max_val = 30
 
     force_x = total_force.x
     force_y = total_force.y
