@@ -1,56 +1,58 @@
-# **Real-Time Obstacle Avoidance and Navigation Using Depth Estimation for Autonomous UAVs**
+<div align="center">
 
-A Python-based implementation for enhanced Tello drone control, integrating UWB (Ultra-Wideband) positioning and depth estimation. This project is designed to enable precise navigation, real-time obstacle detection, and visualisation of the drone's environment.
+# NTU UAV Research
 
----
+Real-time obstacle avoidance and navigation for autonomous UAVs using deep learning depth estimation
 
-## **Features**
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![ROS](https://img.shields.io/badge/ROS-22314E?style=flat-square&logo=ros&logoColor=white)](https://www.ros.org/)
+[![License](https://img.shields.io/github/license/horse-3903/NTU-UAV-Research?style=flat-square)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/horse-3903/NTU-UAV-Research?style=flat-square)](../../commits)
 
-- **UWB Position Tracking**: 
-  - Real-time drone position tracking using the Nooploop Linktrack system.
-  - ROS-based streaming and integration for seamless communication.
-
-- **Depth Estimation**:
-  - Utilises Zoe depth mapping to generate accurate depth information from stereo images.
-  - Supports clustering and segmentation for obstacle detection.
-
-- **Obstacle Avoidance**:
-  - Processes depth maps to dynamically map obstacles and ensure safe navigation.
-
-- **Real-Time Visualisation**:
-  - Displays drone position and detected obstacles in a graphical interface.
-
-- **Task Logging**:
-  - Logs drone configurations and position data for debugging and analysis.
+</div>
 
 ---
 
-## **System Requirements**
+## Overview
 
-- **Hardware**:
-  - DJI Tello drone.
-  - Nooploop Linktrack UWB system.
-  
-- **Software**:
-  - Ubuntu 20.04
-  - Python 3.8
-  - ROS1-Noetic
-  - Required Python libraries:
-    - `numpy`
-    - `opencv-python`
-    - `matplotlib`
-    - `torch`
-    - `PyAV`
-    - Additional dependencies listed in `requirements.txt`.
+This project implements a real-time obstacle avoidance and autonomous navigation system for DJI Tello drones. It integrates Ultra-Wideband (UWB) positioning via the Nooploop Linktrack system with deep learning-based monocular depth estimation (ZoeDepth) to detect and avoid obstacles dynamically. The system is designed and tested as part of research at Nanyang Technological University (NTU).
 
 ---
 
-## **Installation**
+## Features
+
+- **Real-Time Depth Estimation** — Uses ZoeDepth to generate accurate depth maps from the drone's monocular camera feed
+- **Obstacle Detection and Avoidance** — Clusters and segments depth maps to identify obstacles and compute avoidance trajectories
+- **UWB Position Tracking** — Tracks the drone's precise position in real-time via Nooploop Linktrack and ROS
+- **Live Visualisation** — Displays annotated video streams with obstacle bounding information and drone state
+- **Task Logging** — Records position logs, takeoff/target positions, detected obstacles, and drone configuration at each step
+
+---
+
+## Tech Stack
+
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)](https://opencv.org/)
+[![ROS](https://img.shields.io/badge/ROS-22314E?style=for-the-badge&logo=ros&logoColor=white)](https://www.ros.org/)
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Hardware**: DJI Tello drone, Nooploop Linktrack UWB system
+- **OS**: Ubuntu 20.04
+- **Software**: Python 3.8, ROS1 Noetic
+- Camera calibration data (`calibration_data.npz`) — contains camera matrix and distortion coefficients
+
+### Installation
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/horse-3903/NTU-UAV-Research.git
-   cd tellodrone-project
+   cd NTU-UAV-Research
    ```
 
 2. Install Python dependencies:
@@ -58,81 +60,81 @@ A Python-based implementation for enhanced Tello drone control, integrating UWB 
    pip install -r requirements.txt
    ```
 
-3. Configure ROS:
-   - Install and set up ROS on your system.
-   - Ensure compatibility with Nooploop Linktrack and Tello drone SDKs.
+3. Configure ROS and ensure compatibility with the Nooploop Linktrack and Tello SDKs.
 
-4. Add calibration data:
-   - Place `calibration_data.nps` in the project root, containing the camera matrix and distortion coefficients.
+4. Place `calibration_data.npz` in the project root.
 
----
+### Usage
 
-## **Usage**
-
-### **1. Start the UWB System**
-Run the UWB initialisation script to begin position tracking:
+**1. Start the UWB positioning system:**
 ```bash
 bash cmd/uwb.sh
 ```
 
-### **2. Verify UWB Data**
-Ensure UWB data is streaming correctly via ROS:
+**2. Verify UWB data is streaming via ROS:**
 ```bash
-rostopic echo <nlink_linktrack_nodeframe1>
+rostopic echo /nlink_linktrack_nodeframe1
 ```
 
-### **3. Launch the Main Task**
-Run the core script to execute tasks:
+**3. Launch the main navigation task:**
 ```bash
 python task/main.py
 ```
 
 ---
-## **Key Features in Detail**
 
-### **Position Tracking**
-- **Accuracy**: Tracks the drone's position in real-time using UWB and ROS.
-- **Integration**: Dynamically updates positions for effective visualisation and control.
+## Methodology
 
-### **Depth Mapping**
-- Generates high-accuracy depth maps using Zoe depth estimation.
-- Segments depth clusters to identify obstacles in the environment.
+The system operates as a real-time pipeline:
 
-### **Visualisation**
-- Displays annotated video streams with obstacle information and dimensions.
-- Offers real-time updates on drone actions and environment mapping.
+```
+DJI Tello Camera Feed
+        ↓
+  ZoeDepth Model (Monocular Depth Estimation)
+        ↓
+  Depth Map Clustering & Segmentation
+        ↓
+  Obstacle Detection (position + dimensions)
+        ↓
+  UWB Fusion (absolute position via Nooploop Linktrack + ROS)
+        ↓
+  Avoidance Algorithm → Drone Control Commands
+```
 
-### **Logging**
-- **Position Logs**: Records the drone’s position at each step.
-- **Configuration Logs**: Captures:
-  - Takeoff and target positions.
-  - Detected obstacles.
-  - Current drone configurations.
-
----
-
-## **Future Enhancements**
-
-1. **Dynamic Re-Routing**:
-   - Advanced algorithms for re-routing in complex environments.
-
-2. **SLAM Integration**:
-   - Combining UWB and visual SLAM for improved localisation.
-
-3. **Machine Learning**:
-   - Predictive obstacle avoidance using ML models.
+1. **Depth Estimation** — ZoeDepth processes each camera frame to produce a per-pixel depth map without requiring stereo hardware.
+2. **Obstacle Segmentation** — Depth clusters are analysed to identify obstacle boundaries and estimate their real-world dimensions.
+3. **Pose Fusion** — UWB positioning provides absolute coordinates fused with depth data to plan safe trajectories.
+4. **Control** — Computed avoidance commands are sent to the Tello drone via its SDK.
 
 ---
 
-## **Contributors**
-- **Your Name**: [GitHub Profile](https://github.com/horse-3903)
+## Project Structure
 
-Feel free to contribute by submitting pull requests or opening issues for bugs or feature suggestions.
+```
+NTU-UAV-Research/
+├── cmd/                    # Shell scripts (e.g., UWB initialisation)
+├── src/
+│   ├── control/            # Drone control logic
+│   ├── depth/              # Depth estimation pipeline
+│   ├── track/              # Position tracking utilities
+│   └── util/               # Shared helpers
+├── task/
+│   └── main.py             # Main entry point
+├── calibrate/              # Camera calibration tools
+├── calibration_data.npz    # Camera intrinsics
+└── requirements.txt
+```
 
 ---
 
-## **License**
+## Future Enhancements
+
+- **Dynamic Re-Routing** — Advanced path planning for complex multi-obstacle environments
+- **SLAM Integration** — Combining UWB with visual SLAM for improved localisation
+- **Predictive Avoidance** — ML-based models for anticipating obstacle trajectories
+
+---
+
+## License
 
 This project is licensed under the [MIT License](LICENSE).
-
---- 
