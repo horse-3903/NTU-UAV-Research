@@ -276,13 +276,36 @@ The drone will take off, wait for the first depth estimation cycle (every 250 fr
 
 ## Demo
 
-> **TODO:** Add demo GIF showing real-time obstacle avoidance in PyBullet simulation.
+### Live flight — DJI Tello navigating through foam-mat obstacles, NTU lab
 
-> **TODO:** Add side-by-side RGB / depth map / annotated obstacle overlay from a real flight.
+![Demo flight GIF](assets/demo_flight.gif)
 
-> **TODO:** Add short flight video showing the drone navigating toward a target.
+*External overhead camera. The Tello drone navigates autonomously through three stacked foam-mat obstacle towers using APF control driven by ZoeDepth depth estimation and Nooploop LinkTrack UWB localisation. Full video: [`assets/demo_flight.mp4`](assets/demo_flight.mp4) (48 s, 10.6 MB).*
 
-The `calibrate/` directory contains real camera frames captured from the Tello during a calibration session, which can be used to verify depth estimation output.
+---
+
+### Flight environment
+
+![Flight environment](assets/demo_still.jpg)
+
+*NTU lab setup: three stacked foam-mat columns arranged as obstacles across a 6.5 m traversal path. UWB anchors are installed at the room perimeter. The blue mat marks the landing zone.*
+
+---
+
+### Recorded flight trajectories (UWB position log)
+
+| APF only (raw) | APF + PID control |
+|:---:|:---:|
+| ![APF trajectory](assets/trajectory_apf_raw.jpg) | ![APF+PID trajectory](assets/trajectory_apf_pid.jpg) |
+| 45 s flight, erratic lateral excursions | 25 s flight, smooth sinusoidal lateral path |
+
+*Left: APF controller without PID — drone reaches target but path is noisy and oscillatory. Right: APF + PID — significantly smoother trajectory, ~44% reduction in flight time. Both plots show X/Y/Z vs time (left) and a 3D scatter of the recorded UWB path (right), with takeoff (yellow), start (red), end (blue), and target (green) markers.*
+
+---
+
+### Obstacle avoidance success rate
+
+Across multiple runs in the NTU lab environment with the foam-mat obstacle course, the system successfully avoided obstacles **70–80% of the time** (as reported in the project presentation). Failure cases were primarily due to ZoeDepth not having updated its obstacle map before the drone entered the obstacle region (stale depth from the 250-frame inference interval), and occasional APF local minima.
 
 ---
 
@@ -488,6 +511,21 @@ python test_apf.py
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)](https://opencv.org/)
 [![ROS](https://img.shields.io/badge/ROS_Noetic-22314E?style=for-the-badge&logo=ros&logoColor=white)](https://www.ros.org/)
+
+---
+
+## Authors
+
+- **Rafael Chong** — depth estimation pipeline, APF controller, simulation environment
+- **Ethan Phua** — PID controller prototype, path planning integration
+
+Research conducted at Nanyang Technological University, School of Mechanical and Aerospace Engineering.
+
+---
+
+## Acknowledgements
+
+This research was conducted under the supervision of **Dr. Wen Nuan** and **Assistant Professor Mir Feroskhan** (NTU-MAE). Their guidance and provision of lab facilities made this project possible.
 
 ---
 

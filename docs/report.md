@@ -623,6 +623,31 @@ Each ZoeDepth output is processed independently. There is no tracking of obstacl
 
 ---
 
+## 14b. Experimental Results
+
+### Flight Performance
+
+Flight testing was conducted in an NTU lab space with three stacked foam-mat columns used as obstacles, arranged across a 6.5 m traversal path from the drone's start position $(6.17, 2.19, -2.15)$ to the target $(-0.30, 1.75, -2.00)$.
+
+**Obstacle avoidance success rate:** 70–80% across multiple runs. Failure cases were traced to two primary causes:
+
+1. The ZoeDepth obstacle map was stale when the drone entered the obstacle region — at 250-frame inference intervals (~10 s), the drone had already moved significantly before a fresh depth update arrived.
+2. APF local minima in configurations where the center obstacle column fell directly on the attractive force axis, causing the drone to stall.
+
+**Flight duration:** APF-only controller completed the 6.5 m traverse in approximately 45 seconds with significant lateral oscillation. APF with PID control reduced this to approximately 25 seconds with a notably smoother sinusoidal path, a **~44% reduction in flight time**.
+
+### Trajectory Analysis
+
+Recorded UWB position logs from two representative flights are shown in `assets/trajectory_apf_raw.jpg` (APF only) and `assets/trajectory_apf_pid.jpg` (APF + PID).
+
+**APF only (raw):** The X-axis trace shows steady monotonic decrease from $x \approx 6$ to $x \approx 0.3$ over 45 s, confirming the drone traversed the full room length. The Y-axis shows large excursions (0.5–3.8 m range) reflecting obstacle avoidance deviations and oscillation. The Z-axis trace is noisy ($\pm 0.5$ m variance) indicating altitude instability. The 3D scatter plot shows a non-smooth path with sharp angular deviations near the obstacle region.
+
+**APF + PID:** X decreases smoothly from $\approx 6$ to $\approx 0.3$ over 25 s. Y traces a clean single-period sinusoidal curve (2.2–3.3 m excursion), consistent with planned path-following behaviour. Z stabilises at approximately $-2.1$ m for the majority of the flight (0.1 m variance), showing substantially improved altitude hold. The 3D scatter shows a smooth, coherent trajectory.
+
+The PID controller's role is primarily **error correction along planned waypoints** rather than obstacle avoidance per se — it keeps the drone on a pre-computed path while the APF handles reactive deflection around detected obstacles.
+
+---
+
 ## 15. Discussion
 
 ### 15.1 Inference Speed vs. Update Rate

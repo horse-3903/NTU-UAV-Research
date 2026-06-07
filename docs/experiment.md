@@ -56,13 +56,33 @@ $$
 
 This is a traverse of approximately 6.5 m across the long axis of the room, passing through whatever obstacles are present in the space.
 
-### 1.3 Environment Characteristics
+### 1.3 Obstacle Course Setup
+
+Physical obstacles used in flight testing were three stacked columns of interlocking foam mat squares (EVA foam, ~0.6×0.6 m per tile), arranged roughly as follows across the 6.5 m traversal path:
+
+```
+     Start (x≈6.2)                        Target (x≈-0.3)
+         ▶ ─────────────────────────────────────────── ▶
+                  │ LEFT  │  │CENTER│  │ RIGHT │
+                  │ tower │  │tower │  │ tower │
+                  │ ~3.5m │  │ ~5m  │  │ ~4m   │
+```
+
+- **Left tower:** two tiles wide, approximately 3.5 m from the start
+- **Centre tower:** single tile wide, tall (4 tiles ≈ 2.4 m), approximately mid-path
+- **Right tower:** staggered two-column structure, approximately 4 m from the start
+
+The obstacles were stationary during all test runs. The foam mats have a textured surface that ZoeDepth handles reasonably well, though the white/cream colouring and the white curtain backdrop reduce depth contrast at longer ranges.
+
+### 1.4 Environment Characteristics
 
 The lab contains:
-- White-painted concrete walls (low texture, challenging for depth estimation)
+- White curtain backdrop walls (low texture at depth, challenging for ZoeDepth at >4 m)
 - Fluorescent ceiling lighting (relatively uniform, acceptable for depth)
-- Metal shelving and equipment (multipath source for UWB)
-- Controllable clutter (additional obstacles placed for testing)
+- Metal camera tripod and equipment (minor multipath source for UWB)
+- Blue vinyl mat at the landing zone (visible in assets/demo_still.jpg)
+
+For reference images of the environment, see `assets/demo_still.jpg` and `assets/flight_environment.jpg`.
 
 ---
 
@@ -398,6 +418,23 @@ ax.scatter(*data[-1], c="red", s=50, label="end")
 ax.set_xlabel("X (m)"); ax.set_ylabel("Y (m)"); ax.set_zlabel("Z (m)")
 plt.legend(); plt.show()
 ```
+
+### 7.6 Recorded Trajectory Reference
+
+Two reference trajectories are stored in `assets/`:
+
+| File | Description |
+|---|---|
+| `assets/trajectory_apf_raw.jpg` | APF only — 45 s run, erratic lateral deviations, ±0.5 m Z noise |
+| `assets/trajectory_apf_pid.jpg` | APF + PID — 25 s run, smooth sinusoidal Y path, stable Z at -2.1 m |
+
+**Reading the trajectory plots:** The left panel shows X, Y, Z vs time independently. The right panel shows the full 3D scatter with colour-coded markers: yellow = takeoff, red = start (post-hover), blue = end position, green = configured target.
+
+**What to look for in a good run:**
+- X decreases monotonically from ~6 to ~0 (no backtracking)
+- Y excursions are smooth and bounded to [0.5, 3.5] m (obstacle deflection, not oscillation)
+- Z holds at approximately -2.0 to -2.2 m with <0.2 m variance (altitude stability)
+- 3D path shows a smooth arc rather than a jagged cluster of points
 
 ---
 
