@@ -3,707 +3,673 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>APF Navigator — NTU UAV Research</title>
+<title>APF 3D Navigator — NTU UAV Research</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --bg:       #0d1117;
-    --surface:  #161b22;
-    --border:   #30363d;
-    --text:     #e6edf3;
-    --muted:    #8b949e;
-    --accent:   #58a6ff;
-    --green:    #3fb950;
-    --red:      #f85149;
-    --orange:   #d29922;
-    --purple:   #a371f7;
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --orange: #d29922; --purple: #a371f7;
   }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  #c { position: fixed; inset: 0; display: block; width: 100% !important; height: 100% !important; }
+  #ui {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 260px;
+    background: rgba(13,17,23,0.88);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 13px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 24px 16px 40px;
-    gap: 20px;
+    font-size: 12px; color: var(--text);
+    overflow-y: auto;
+    padding: 16px 14px 24px;
+    gap: 14px;
   }
-
-  header {
-    text-align: center;
+  #ui h1 {
+    font-size: 14px; font-weight: 600;
+    border-bottom: 1px solid var(--border); padding-bottom: 10px;
+    line-height: 1.4;
   }
-  header h1 { font-size: 20px; font-weight: 600; color: var(--text); }
-  header p  { color: var(--muted); margin-top: 4px; font-size: 12px; }
-
-  .layout {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
+  #ui h1 small { display: block; color: var(--muted); font-weight: 400; font-size: 10px; margin-top: 2px; }
+  .sec { display: flex; flex-direction: column; gap: 8px; }
+  .sec-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .param { display: flex; flex-direction: column; gap: 3px; }
+  .param .row { display: flex; justify-content: space-between; }
+  .param .row .val { color: var(--accent); font-family: monospace; }
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .btn { width: 100%; padding: 7px; border-radius: 5px; border: 1px solid var(--border);
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); }
+  .btn-secondary { background: transparent; color: var(--muted); }
+  .btn-danger { background: transparent; color: var(--red); border-color: var(--red); }
+  .btn-small {
+    padding: 2px 7px; font-size: 10px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--muted);
+  }
+  .btn-small:hover { color: var(--text); border-color: var(--text); }
+  .sec-label-row { display: flex; justify-content: space-between; align-items: center; }
+  .obs-row {
+    background: rgba(22,27,34,0.6); border: 1px solid var(--border);
+    border-radius: 5px; padding: 7px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .obs-row .obs-head { display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--orange); font-weight: 500; }
+  .obs-row .obs-head button { background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+  .obs-row .obs-head button:hover { color: var(--red); }
+  .coords { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .coord-field { display: flex; flex-direction: column; gap: 2px; }
+  .coord-field label { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+  .coord-field input {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text); font-size: 11px; padding: 3px 5px; width: 100%;
+    font-family: monospace;
+  }
+  .coord-field input:focus { outline: none; border-color: var(--accent); }
+  .nav-row { display: grid; grid-template-columns: 44px 1fr 1fr 1fr; gap: 4px; align-items: center; }
+  .nav-row .nav-label { font-size: 10px; color: var(--muted); }
+  .nav-row input {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text); font-size: 11px; padding: 3px 4px; font-family: monospace;
     width: 100%;
-    max-width: 960px;
   }
-
-  canvas {
-    display: block;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #0a0f17;
-    cursor: crosshair;
-    flex-shrink: 0;
-    max-width: 100%;
+  .nav-row input:focus { outline: none; border-color: var(--accent); }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 7px 8px; }
+  .stat .sl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat .sv { font-size: 15px; font-weight: 600; font-family: monospace; margin-top: 1px; }
+  .sv.ok   { color: var(--green); }  .sv.warn { color: var(--orange); }  .sv.err { color: var(--red); }
+  #loading {
+    position: fixed; inset: 0; right: 260px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-family: monospace; font-size: 13px;
+    pointer-events: none; background: var(--bg);
+    transition: opacity .4s;
   }
-
-  .sidebar {
-    flex: 0 0 210px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  @media (max-width: 800px) {
-    .layout { flex-direction: column; }
-    .sidebar { flex: 0 0 auto; width: 100%; }
-  }
-
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 12px;
-  }
-
-  .panel h2 {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-
-  .param { margin-bottom: 10px; }
-  .param label {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    font-size: 12px;
-  }
-  .param label span { color: var(--accent); font-family: monospace; }
-  input[type=range] {
-    width: 100%;
-    accent-color: var(--accent);
-  }
-
-  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
-  button {
-    flex: 1;
-    padding: 7px 10px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity .15s;
-  }
-  button:hover { opacity: 0.85; }
-  button:active { opacity: 0.7; }
-
-  #btn-simulate { background: var(--accent); color: #000; border-color: var(--accent); }
-  #btn-reset    { background: transparent; color: var(--muted); }
-  #btn-clear    { background: transparent; color: var(--red); border-color: var(--red); }
-
-  .stat-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .stat {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 8px;
-  }
-  .stat .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
-  .stat .value { font-size: 16px; font-weight: 600; margin-top: 2px; font-family: monospace; }
-  .stat .value.ok   { color: var(--green); }
-  .stat .value.warn { color: var(--orange); }
-  .stat .value.err  { color: var(--red); }
-
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 11px;
-    color: var(--muted);
-    align-items: center;
-  }
-  .legend span { display: flex; align-items: center; gap: 4px; }
-  .dot {
-    display: inline-block;
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .square {
-    display: inline-block;
-    width: 10px; height: 6px;
-    border-radius: 1px;
-    flex-shrink: 0;
-  }
-
-  .hint {
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.5;
-    max-width: 700px;
-    text-align: center;
+  #hint {
+    position: fixed; bottom: 12px; left: 12px;
+    font-size: 10px; color: var(--muted);
+    font-family: -apple-system, sans-serif;
+    pointer-events: none;
+    line-height: 1.6;
   }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>APF Navigator — Interactive Demo</h1>
-  <p>NTU UAV Research · Artificial Potential Field obstacle avoidance · DJI Tello · ZoeDepth</p>
-</header>
+<canvas id="c"></canvas>
 
-<div class="layout">
-  <canvas id="canvas" width="720" height="440"></canvas>
+<div id="loading">Initialising Three.js scene…</div>
 
-  <div class="sidebar">
+<div id="ui">
+  <h1>APF 3D Navigator<small>NTU UAV Research · DJI Tello · ZoeDepth</small></h1>
 
-    <div class="panel">
-      <h2>APF Parameters</h2>
-      <div class="param">
-        <label>Attraction k<sub>a</sub> <span id="val-ka">30</span></label>
-        <input type="range" id="sl-ka" min="1" max="80" value="30" step="1">
-      </div>
-      <div class="param">
-        <label>Repulsion k<sub>r</sub> <span id="val-kr">10</span></label>
-        <input type="range" id="sl-kr" min="1" max="60" value="10" step="1">
-      </div>
-      <div class="param">
-        <label>Influence ρ₀ (m) <span id="val-rho">0.50</span></label>
-        <input type="range" id="sl-rho" min="0.1" max="2.5" value="0.5" step="0.05">
-      </div>
+  <div class="sec">
+    <div class="sec-label">APF Parameters</div>
+    <div class="param">
+      <div class="row"><span>Attraction k<sub>a</sub></span><span class="val" id="va">30</span></div>
+      <input type="range" id="ka" min="1" max="80" value="30" step="1">
     </div>
-
-    <div class="panel">
-      <h2>Controls</h2>
-      <div class="btn-row">
-        <button id="btn-simulate">Simulate</button>
-        <button id="btn-reset">Reset</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button id="btn-clear">Clear obstacles</button>
-      </div>
+    <div class="param">
+      <div class="row"><span>Repulsion k<sub>r</sub></span><span class="val" id="vr">10</span></div>
+      <input type="range" id="kr" min="1" max="60" value="10" step="1">
     </div>
-
-    <div class="panel">
-      <h2>Results</h2>
-      <div class="stat-grid">
-        <div class="stat">
-          <div class="label">Status</div>
-          <div class="value" id="stat-status">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">Steps</div>
-          <div class="value" id="stat-steps">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">Path (m)</div>
-          <div class="value" id="stat-path">—</div>
-        </div>
-        <div class="stat">
-          <div class="label">Min clearance</div>
-          <div class="value" id="stat-clear">—</div>
-        </div>
-      </div>
+    <div class="param">
+      <div class="row"><span>Influence ρ₀ (m)</span><span class="val" id="vp">0.50</span></div>
+      <input type="range" id="rho" min="0.1" max="2.5" value="0.5" step="0.05">
     </div>
+  </div>
 
-    <div class="panel">
-      <h2>Legend</h2>
-      <div class="legend">
-        <span><span class="dot" style="background:#3fb950"></span>Start</span>
-        <span><span class="dot" style="background:#f85149"></span>Target</span>
-        <span><span class="dot" style="background:#e09020"></span>Obstacle</span>
-        <span><span class="dot" style="background:#58a6ff"></span>Path</span>
-        <span><span class="square" style="background:#30363d"></span>Flight bounds</span>
-      </div>
+  <div class="sec">
+    <div class="sec-label-row">
+      <span class="sec-label">Obstacles</span>
+      <button class="btn-small" id="btn-add">+ Add</button>
     </div>
+    <div id="obs-list"></div>
+  </div>
 
+  <div class="sec">
+    <div class="sec-label">Navigation</div>
+    <div class="nav-row">
+      <span class="nav-label" style="color:var(--green)">Start</span>
+      <input type="number" id="sx" value="6.17" step="0.1">
+      <input type="number" id="sy" value="2.19" step="0.1">
+      <input type="number" id="sz" value="-2.15" step="0.1">
+    </div>
+    <div class="nav-row" style="margin-top:4px">
+      <span class="nav-label" style="color:var(--red)">Target</span>
+      <input type="number" id="tx" value="-0.30" step="0.1">
+      <input type="number" id="ty" value="1.75" step="0.1">
+      <input type="number" id="tz" value="-2.00" step="0.1">
+    </div>
+    <div style="font-size:9px;color:var(--muted);margin-top:2px">
+      Coordinate frame: X forward · Y lateral · Z negative=up
+    </div>
+  </div>
+
+  <div class="sec">
+    <button class="btn btn-primary" id="btn-sim">▶ Simulate</button>
+    <button class="btn btn-secondary" id="btn-reset" style="margin-top:6px">Reset scene</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-label">Results</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="sl">Status</div><div class="sv" id="rs">—</div></div>
+      <div class="stat"><div class="sl">Steps</div><div class="sv" id="rstep">—</div></div>
+      <div class="stat"><div class="sl">Path (m)</div><div class="sv" id="rpath">—</div></div>
+      <div class="stat"><div class="sl">Min clear</div><div class="sv" id="rclear">—</div></div>
+    </div>
   </div>
 </div>
 
-<p class="hint">
-  Drag <b style="color:var(--green)">start</b> or <b style="color:var(--red)">target</b> to reposition &nbsp;·&nbsp;
-  Click anywhere in the flight space to place an obstacle &nbsp;·&nbsp;
-  Right-click an obstacle to remove it
-</p>
+<div id="hint">
+  Drag to orbit &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Right-drag to pan
+</div>
 
-<script>
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// World-space constants
+// ─────────────────────────────────────────────────────────────────────────────
 const X_BOUNDS = [-0.5, 7.0];
 const Y_BOUNDS = [-0.5, 4.5];
-const Z = -2.1;  // fixed flight height for 2-D demo
+const Z_BOUNDS = [-3.75, -0.5];
 
-const DEFAULT_START  = { x: 6.17, y: 2.19 };
-const DEFAULT_TARGET = { x: -0.30, y: 1.75 };
-const DEFAULT_OBSTACLES = [
-  { x: 3.0, y: 2.8, r: 0.38 },
-  { x: 4.5, y: 1.4, r: 0.38 },
-  { x: 5.8, y: 2.5, r: 0.38 },
+// World → Three.js: X stays, Y lateral → Z axis, Z negative-up → Y
+function w2t(wx, wy, wz) { return new THREE.Vector3(wx, -wz, wy); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let obstacles = [
+  { x: 3.0, y: 2.8, z: -2.1, r: 0.38 },
+  { x: 4.5, y: 1.4, z: -2.1, r: 0.38 },
+  { x: 5.8, y: 2.5, z: -2.1, r: 0.38 },
 ];
 
-const MAX_STEPS = 1200;
-const ARRIVAL   = 0.30;
-const SCALE_M   = 0.003;  // m/step per command unit (smaller → smoother animation, ~100 steps)
-const MAX_CMD   = 30;
+let trajPoints   = [];
+let animFrame    = null;
+let droneSphere  = null;
+let trajLine     = null;
+let startSphere  = null;
+let targetSphere = null;
+const obsMeshes  = [];
+const infMeshes  = [];
 
-// ---------------------------------------------------------------------------
-// Canvas setup
-// ---------------------------------------------------------------------------
-const canvas = document.getElementById("canvas");
-const ctx    = canvas.getContext("2d");
+// ─────────────────────────────────────────────────────────────────────────────
+// Three.js setup
+// ─────────────────────────────────────────────────────────────────────────────
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
 
-const MARGIN  = 38;
-const FIELD_W = canvas.width  - 2 * MARGIN;
-const FIELD_H = canvas.height - 2 * MARGIN;
-const PX_PER_M_X = FIELD_W / (X_BOUNDS[1] - X_BOUNDS[0]);
-const PX_PER_M_Y = FIELD_H / (Y_BOUNDS[1] - Y_BOUNDS[0]);
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e15);
+scene.fog = new THREE.FogExp2(0x0a0e15, 0.012);
 
-function w2c(wx, wy) {
-  return {
-    cx: MARGIN + (wx - X_BOUNDS[0]) * PX_PER_M_X,
-    cy: canvas.height - MARGIN - (wy - Y_BOUNDS[0]) * PX_PER_M_Y,
-  };
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+const sceneCenter = w2t(3.25, 2.0, -2.125);
+camera.position.set(14, 8, -3);
+camera.lookAt(sceneCenter);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(sceneCenter);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 2;
+controls.maxDistance = 40;
+controls.update();
+
+// Lights
+scene.add(new THREE.AmbientLight(0x304060, 1.2));
+const sun = new THREE.DirectionalLight(0xc8d8ff, 1.4);
+sun.position.set(8, 12, -4);
+sun.castShadow = true;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x203050, 0.5);
+fill.position.set(-6, 2, 8);
+scene.add(fill);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Static scene objects
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Grid at lab floor (world z=0 ≈ ground below drone)
+const grid = new THREE.GridHelper(20, 40, 0x1a2535, 0x111921);
+grid.position.set(3.25, 0, 2.0);
+scene.add(grid);
+
+// Flight bounds wireframe box
+{
+  const size = new THREE.Vector3(
+    X_BOUNDS[1] - X_BOUNDS[0],
+    Z_BOUNDS[0] - Z_BOUNDS[1],   // -z range becomes y height
+    Y_BOUNDS[1] - Y_BOUNDS[0],
+  );
+  const center = w2t(
+    (X_BOUNDS[0] + X_BOUNDS[1]) / 2,
+    (Y_BOUNDS[0] + Y_BOUNDS[1]) / 2,
+    (Z_BOUNDS[0] + Z_BOUNDS[1]) / 2,
+  );
+  const boxGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+  const boxEdges = new THREE.EdgesGeometry(boxGeo);
+  const boxMat = new THREE.LineBasicMaterial({ color: 0x1e3a5f, transparent: true, opacity: 0.6 });
+  const boxLines = new THREE.LineSegments(boxEdges, boxMat);
+  boxLines.position.copy(center);
+  scene.add(boxLines);
+
+  // Floor plane of flight space (at max altitude, world z=Z_BOUNDS[0])
+  const planeGeo = new THREE.PlaneGeometry(size.x, size.z);
+  const planeMat = new THREE.MeshBasicMaterial({
+    color: 0x0d1f35, transparent: true, opacity: 0.25, side: THREE.DoubleSide
+  });
+  const plane = new THREE.Mesh(planeGeo, planeMat);
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.copy(w2t(
+    (X_BOUNDS[0] + X_BOUNDS[1]) / 2,
+    (Y_BOUNDS[0] + Y_BOUNDS[1]) / 2,
+    Z_BOUNDS[0],
+  ));
+  scene.add(plane);
 }
-function c2w(cx, cy) {
-  return {
-    wx: (cx - MARGIN) / PX_PER_M_X + X_BOUNDS[0],
-    wy: (canvas.height - MARGIN - cy) / PX_PER_M_Y + Y_BOUNDS[0],
-  };
+
+// Axis arrows (X=red, Y=green, Z=blue in THREE space)
+{
+  const axLen = 1.0;
+  const origin = w2t(X_BOUNDS[0], Y_BOUNDS[0], Z_BOUNDS[1]);
+  const arrowX = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), origin, axLen, 0xf85149, 0.15, 0.08);
+  const arrowY = new THREE.ArrowHelper(new THREE.Vector3(0,1,0), origin, axLen, 0x3fb950, 0.15, 0.08);
+  const arrowZ = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), origin, axLen, 0x58a6ff, 0.15, 0.08);
+  scene.add(arrowX, arrowY, arrowZ);
 }
-function obsRadiusPx(r) {
-  return r * PX_PER_M_X;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dynamic markers (start / target / drone)
+// ─────────────────────────────────────────────────────────────────────────────
+function makeMarker(color, radius = 0.14) {
+  const geo = new THREE.SphereGeometry(radius, 16, 12);
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.4 });
+  return new THREE.Mesh(geo, mat);
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-let start     = { ...DEFAULT_START };
-let target    = { ...DEFAULT_TARGET };
-let obstacles = DEFAULT_OBSTACLES.map(o => ({ ...o }));
-let path      = [];   // [{x,y}]
-let animStep  = 0;
-let animId    = null;
+function makeRing(color, pos) {
+  const geo = new THREE.TorusGeometry(0.25, 0.025, 8, 32);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const ring = new THREE.Mesh(geo, mat);
+  ring.position.copy(pos);
+  ring.lookAt(pos.clone().add(new THREE.Vector3(0,1,0)));
+  return ring;
+}
 
-// drag state
-let dragging  = null;  // "start" | "target" | null
+function rebuildMarkers() {
+  if (startSphere)  { scene.remove(startSphere.group); }
+  if (targetSphere) { scene.remove(targetSphere.group); }
 
-// ---------------------------------------------------------------------------
-// APF simulation (JS port of task/apf.py + follow_path.py)
-// ---------------------------------------------------------------------------
-function wallForce(coord, lo, hi, dwall, kr) {
+  const sv = readVec('sx','sy','sz');
+  const tv = readVec('tx','ty','tz');
+  const sp = w2t(sv.x, sv.y, sv.z);
+  const tp = w2t(tv.x, tv.y, tv.z);
+
+  const sg = new THREE.Group();
+  const sm = makeMarker(0x3fb950);
+  sm.position.copy(sp);
+  sg.add(sm, makeRing(0x3fb950, sp));
+  scene.add(sg);
+  startSphere = { group: sg, mesh: sm };
+
+  const tg = new THREE.Group();
+  const tm = makeMarker(0xf85149);
+  tm.position.copy(tp);
+  tg.add(tm, makeRing(0xf85149, tp));
+  scene.add(tg);
+  targetSphere = { group: tg, mesh: tm };
+
+  // Drone sphere (hidden until simulation)
+  if (!droneSphere) {
+    droneSphere = makeMarker(0xa371f7, 0.12);
+    droneSphere.visible = false;
+    scene.add(droneSphere);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Obstacle meshes
+// ─────────────────────────────────────────────────────────────────────────────
+function rebuildObstacleMeshes() {
+  obsMeshes.forEach(m => scene.remove(m));
+  infMeshes.forEach(m => scene.remove(m));
+  obsMeshes.length = 0;
+  infMeshes.length = 0;
+
+  const rho = parseFloat(document.getElementById('rho').value);
+  obstacles.forEach(o => {
+    // Solid sphere
+    const geo = new THREE.SphereGeometry(o.r, 20, 14);
+    const mat = new THREE.MeshPhongMaterial({
+      color: 0xd29922, emissive: 0x7a3010, emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.92,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(w2t(o.x, o.y, o.z));
+    mesh.castShadow = true;
+    scene.add(mesh);
+    obsMeshes.push(mesh);
+
+    // Influence zone wireframe
+    const igeo = new THREE.SphereGeometry(rho, 16, 10);
+    const imat = new THREE.MeshBasicMaterial({
+      color: 0xd29922, wireframe: true, transparent: true, opacity: 0.08
+    });
+    const imesh = new THREE.Mesh(igeo, imat);
+    imesh.position.copy(w2t(o.x, o.y, o.z));
+    scene.add(imesh);
+    infMeshes.push(imesh);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trajectory line
+// ─────────────────────────────────────────────────────────────────────────────
+function drawTrajectory(pts) {
+  if (trajLine) scene.remove(trajLine);
+  if (pts.length < 2) return;
+
+  const positions = [];
+  for (const p of pts) {
+    const v = w2t(p[0], p[1], p[2]);
+    positions.push(v.x, v.y, v.z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0x58a6ff, linewidth: 2 });
+  trajLine = new THREE.Line(geo, mat);
+  scene.add(trajLine);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APF simulation (client-side fallback — mirrors task/apf.py)
+// ─────────────────────────────────────────────────────────────────────────────
+function wallF(coord, lo, hi, dw, kr) {
   let f = 0;
-  const dLo = coord - lo;
-  const dHi = hi - coord;
-  if (dLo > 0 && dLo < dwall) f += kr * ((1 / dLo) - (1 / dwall)) / (dLo * dLo);
-  if (dHi > 0 && dHi < dwall) f -= kr * ((1 / dHi) - (1 / dwall)) / (dHi * dHi);
+  const dLo = coord - lo, dHi = hi - coord;
+  if (dLo > 0 && dLo < dw) f += kr * ((1/dLo) - (1/dw)) / (dLo*dLo);
+  if (dHi > 0 && dHi < dw) f -= kr * ((1/dHi) - (1/dw)) / (dHi*dHi);
   return f;
 }
 
-function apfSim(sx, sy, tx, ty, obs, ka, kr, rho, maxSteps) {
-  let cx = sx;
-  let cy = sy;
-  const traj = [{ x: cx, y: cy }];
-  let pathLen = 0;
-  let minClear = Infinity;
-  let converged = false;
+function apfSim(sx, sy, sz, tx, ty, tz, obs, ka, kr, rho) {
+  let cx=sx, cy=sy, cz=sz;
+  const traj = [[cx,cy,cz]];
+  const SCALE=0.003, MAX_CMD=30, ARRIVAL=0.3, MAX_STEPS=1200;
+  let pathLen=0, minClear=Infinity, converged=false;
 
-  for (let i = 0; i < maxSteps; i++) {
-    const dx = tx - cx, dy = ty - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist <= ARRIVAL) { converged = true; break; }
+  for (let i=0; i<MAX_STEPS; i++) {
+    const dx=tx-cx, dy=ty-cy, dz=tz-cz;
+    const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if (dist<=ARRIVAL) { converged=true; break; }
+    const kaE = dist<1.0 ? Math.max(10, ka*dist) : ka;
+    let fax=kaE*dx, fay=kaE*dy, faz=kaE*dz;
+    let frx=0, fry=0, frz=0;
 
-    const ka_eff = dist < 1.0 ? Math.max(10, ka * dist) : ka;
-
-    // Attractive force
-    const fax = ka_eff * dx;
-    const fay = ka_eff * dy;
-
-    // Repulsive force from obstacles
-    let frx = 0, fry = 0;
     for (const o of obs) {
-      const ex = cx - o.x, ey = cy - o.y;
-      const dObs = Math.max(Math.sqrt(ex * ex + ey * ey) - o.r, 1e-6);
-      if (dObs < rho) {
-        const mag = kr * ((1 / dObs) - (1 / rho)) / (dObs * dObs);
-        const len = Math.sqrt(ex * ex + ey * ey) || 1e-9;
-        frx += mag * ex / len;
-        fry += mag * ey / len;
+      const ex=cx-o.x, ey=cy-o.y, ez=cz-o.z;
+      const dObs=Math.max(Math.sqrt(ex*ex+ey*ey+ez*ez)-o.r, 1e-6);
+      if (dObs<rho) {
+        const mag=kr*((1/dObs)-(1/rho))/(dObs*dObs);
+        const len=Math.sqrt(ex*ex+ey*ey+ez*ez)||1e-9;
+        frx+=mag*ex/len; fry+=mag*ey/len; frz+=mag*ez/len;
       }
-      // track clearance
-      const clearance = Math.max(Math.sqrt(ex * ex + ey * ey) - o.r, 0);
-      if (clearance < minClear) minClear = clearance;
+      const cl=Math.max(Math.sqrt(ex*ex+ey*ey+ez*ez)-o.r, 0);
+      if (cl<minClear) minClear=cl;
     }
+    frx+=wallF(cx,X_BOUNDS[0],X_BOUNDS[1],0.5,kr);
+    fry+=wallF(cy,Y_BOUNDS[0],Y_BOUNDS[1],0.5,kr);
+    frz+=wallF(cz,Z_BOUNDS[0],Z_BOUNDS[1],0.5,kr);
 
-    // Boundary repulsion (correct APF: d = distance to wall)
-    frx += wallForce(cx, X_BOUNDS[0], X_BOUNDS[1], 0.5, kr);
-    fry += wallForce(cy, Y_BOUNDS[0], Y_BOUNDS[1], 0.5, kr);
-
-    const totalX = fax + frx;
-    const totalY = fay + fry;
-
-    const vx = Math.max(-MAX_CMD, Math.min(MAX_CMD, totalX / dist)) * SCALE_M;
-    const vy = Math.max(-MAX_CMD, Math.min(MAX_CMD, totalY / dist)) * SCALE_M;
-
-    const nx = Math.max(X_BOUNDS[0], Math.min(X_BOUNDS[1], cx + vx));
-    const ny = Math.max(Y_BOUNDS[0], Math.min(Y_BOUNDS[1], cy + vy));
-
-    const stepLen = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
-    pathLen += stepLen;
-
-    cx = nx; cy = ny;
-    traj.push({ x: cx, y: cy });
+    const clamp=(v)=>Math.max(-MAX_CMD,Math.min(MAX_CMD,v/dist))*SCALE;
+    const nx=Math.max(X_BOUNDS[0],Math.min(X_BOUNDS[1], cx+clamp(fax+frx)));
+    const ny=Math.max(Y_BOUNDS[0],Math.min(Y_BOUNDS[1], cy+clamp(fay+fry)));
+    const nz=Math.max(Z_BOUNDS[0],Math.min(Z_BOUNDS[1], cz+clamp(faz+frz)));
+    pathLen+=Math.sqrt((nx-cx)**2+(ny-cy)**2+(nz-cz)**2);
+    cx=nx; cy=ny; cz=nz;
+    traj.push([cx,cy,cz]);
   }
+  return { traj, converged, steps:traj.length-1,
+    pathLen:Math.round(pathLen*1000)/1000,
+    minClear: obs.length>0 ? Math.round(minClear*1000)/1000 : null };
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Drone animation
+// ─────────────────────────────────────────────────────────────────────────────
+function animateDrone(pts) {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  if (!pts.length) return;
+
+  droneSphere.visible = true;
+  let idx = 0;
+  let last = 0;
+
+  function step(ts) {
+    if (ts - last > 16) {  // ~60fps
+      if (idx < pts.length) {
+        const p = pts[idx];
+        droneSphere.position.copy(w2t(p[0], p[1], p[2]));
+        idx++;
+      }
+      last = ts;
+    }
+    if (idx < pts.length) {
+      animFrame = requestAnimationFrame(step);
+    }
+  }
+  animFrame = requestAnimationFrame(step);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function readVec(xId, yId, zId) {
   return {
-    traj,
-    converged,
-    steps: traj.length - 1,
-    pathLen: Math.round(pathLen * 1000) / 1000,
-    minClear: obs.length > 0 ? Math.round(minClear * 1000) / 1000 : null,
+    x: parseFloat(document.getElementById(xId).value),
+    y: parseFloat(document.getElementById(yId).value),
+    z: parseFloat(document.getElementById(zId).value),
   };
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Flight space background
-  const { cx: bx0, cy: by1 } = w2c(X_BOUNDS[0], Y_BOUNDS[0]);
-  const { cx: bx1, cy: by0 } = w2c(X_BOUNDS[1], Y_BOUNDS[1]);
-  ctx.fillStyle = "#0c1119";
-  ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
-  ctx.strokeStyle = "#1f2937";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
-
-  // Grid lines (every 1 m)
-  ctx.strokeStyle = "#1a2030";
-  ctx.lineWidth = 0.5;
-  for (let gx = Math.ceil(X_BOUNDS[0]); gx <= X_BOUNDS[1]; gx++) {
-    const { cx } = w2c(gx, 0);
-    ctx.beginPath(); ctx.moveTo(cx, by0); ctx.lineTo(cx, by1); ctx.stroke();
-  }
-  for (let gy = Math.ceil(Y_BOUNDS[0]); gy <= Y_BOUNDS[1]; gy++) {
-    const { cy } = w2c(0, gy);
-    ctx.beginPath(); ctx.moveTo(bx0, cy); ctx.lineTo(bx1, cy); ctx.stroke();
-  }
-
-  // Axis labels
-  ctx.fillStyle = "#3d4a5a";
-  ctx.font = "10px monospace";
-  ctx.textAlign = "center";
-  for (let gx = 0; gx <= 6; gx += 2) {
-    const { cx } = w2c(gx, 0);
-    ctx.fillText(gx + "m", cx, by1 + 14);
-  }
-  ctx.textAlign = "right";
-  for (let gy = 0; gy <= 4; gy += 2) {
-    const { cy } = w2c(0, gy);
-    ctx.fillText(gy + "m", bx0 - 4, cy + 3);
-  }
-  ctx.textAlign = "left";
-  ctx.fillStyle = "#2d3748";
-  ctx.fillText("X →", bx1 - 24, by1 + 14);
-  ctx.save(); ctx.translate(bx0 - 20, by0 + 20); ctx.rotate(-Math.PI/2);
-  ctx.fillText("Y →", 0, 0); ctx.restore();
-
-  // Influence zones (semi-transparent circles around obstacles)
-  const rho = parseFloat(document.getElementById("sl-rho").value);
-  for (const o of obstacles) {
-    const { cx, cy } = w2c(o.x, o.y);
-    const rPx = obsRadiusPx(rho);
-    ctx.beginPath();
-    ctx.arc(cx, cy, rPx, 0, 2 * Math.PI);
-    ctx.fillStyle = "rgba(210, 153, 34, 0.07)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(210, 153, 34, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Path (drawn up to animStep)
-  if (path.length > 1) {
-    const steps = Math.min(animStep, path.length - 1);
-    ctx.beginPath();
-    const p0 = w2c(path[0].x, path[0].y);
-    ctx.moveTo(p0.cx, p0.cy);
-    for (let i = 1; i <= steps; i++) {
-      const { cx, cy } = w2c(path[i].x, path[i].y);
-      ctx.lineTo(cx, cy);
-    }
-    ctx.strokeStyle = "#58a6ff";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-
-  // Obstacles
-  for (const o of obstacles) {
-    const { cx, cy } = w2c(o.x, o.y);
-    const rPx = obsRadiusPx(o.r);
-    ctx.beginPath();
-    ctx.arc(cx, cy, rPx, 0, 2 * Math.PI);
-    const grad = ctx.createRadialGradient(cx - rPx * 0.3, cy - rPx * 0.3, 1, cx, cy, rPx);
-    grad.addColorStop(0, "#f0a030");
-    grad.addColorStop(1, "#7a4010");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#d29922";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-
-  // Target marker
-  {
-    const { cx, cy } = w2c(target.x, target.y);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = "#f85149";
-    ctx.fill();
-    ctx.strokeStyle = "#ff7b72";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // crosshair
-    ctx.strokeStyle = "rgba(248,81,73,0.5)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#e6edf3";
-    ctx.font = "bold 10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("T", cx, cy + 3.5);
-  }
-
-  // Start marker
-  {
-    const { cx, cy } = w2c(start.x, start.y);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = "#3fb950";
-    ctx.fill();
-    ctx.strokeStyle = "#7ee787";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = "#0d1117";
-    ctx.font = "bold 10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("S", cx, cy + 3.5);
-  }
-
-  // Animated drone position
-  if (path.length > 0 && animStep > 0) {
-    const idx = Math.min(animStep, path.length - 1);
-    const { cx, cy } = w2c(path[idx].x, path[idx].y);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = "#a371f7";
-    ctx.fill();
-    ctx.strokeStyle = "#d2a8ff";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Simulation trigger
-// ---------------------------------------------------------------------------
-function runSimulation() {
-  stopAnim();
-  path = [];
-  animStep = 0;
-
-  const ka  = parseFloat(document.getElementById("sl-ka").value);
-  const kr  = parseFloat(document.getElementById("sl-kr").value);
-  const rho = parseFloat(document.getElementById("sl-rho").value);
-
-  const result = apfSim(
-    start.x, start.y, target.x, target.y,
-    obstacles, ka, kr, rho, MAX_STEPS
-  );
-
-  path = result.traj;
-
-  // Update stats
-  const statusEl = document.getElementById("stat-status");
-  statusEl.textContent = result.converged ? "Converged" : "Timeout";
-  statusEl.className = "value " + (result.converged ? "ok" : "err");
-
-  document.getElementById("stat-steps").textContent = result.steps;
-  document.getElementById("stat-path").textContent  = result.pathLen.toFixed(2);
-
-  const clearEl = document.getElementById("stat-clear");
+function setStats(result) {
+  const rs = document.getElementById('rs');
+  rs.textContent = result.converged ? 'Converged' : 'Timeout';
+  rs.className = 'sv ' + (result.converged ? 'ok' : 'err');
+  document.getElementById('rstep').textContent  = result.steps;
+  document.getElementById('rpath').textContent  = result.pathLen.toFixed(2);
+  const rc = document.getElementById('rclear');
   if (result.minClear !== null) {
-    clearEl.textContent = result.minClear.toFixed(2) + " m";
-    clearEl.className   = "value " + (result.minClear < 0.1 ? "err" : result.minClear < 0.25 ? "warn" : "ok");
-  } else {
-    clearEl.textContent = "N/A";
-    clearEl.className   = "value";
-  }
-
-  animateResult();
-}
-
-function animateResult() {
-  animStep = 0;
-  let last = 0;
-  const fps = 60;
-  const stepsPerFrame = Math.max(1, Math.floor(path.length / (fps * 3)));
-
-  function frame(ts) {
-    if (ts - last >= 1000 / fps) {
-      animStep = Math.min(animStep + stepsPerFrame, path.length - 1);
-      last = ts;
-      draw();
-    }
-    if (animStep < path.length - 1) {
-      animId = requestAnimationFrame(frame);
-    }
-  }
-  animId = requestAnimationFrame(frame);
-}
-
-function stopAnim() {
-  if (animId) { cancelAnimationFrame(animId); animId = null; }
-}
-
-// ---------------------------------------------------------------------------
-// Reset
-// ---------------------------------------------------------------------------
-function reset() {
-  stopAnim();
-  start     = { ...DEFAULT_START };
-  target    = { ...DEFAULT_TARGET };
-  obstacles = DEFAULT_OBSTACLES.map(o => ({ ...o }));
-  path      = [];
-  animStep  = 0;
-  clearStats();
-  draw();
+    rc.textContent = result.minClear.toFixed(2) + 'm';
+    rc.className = 'sv ' + (result.minClear < 0.1 ? 'err' : result.minClear < 0.25 ? 'warn' : 'ok');
+  } else { rc.textContent = 'N/A'; rc.className = 'sv'; }
 }
 
 function clearStats() {
-  ["stat-status","stat-steps","stat-path","stat-clear"].forEach(id => {
-    const el = document.getElementById(id);
-    el.textContent = "—";
-    el.className = "value";
+  ['rs','rstep','rpath','rclear'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+    document.getElementById(id).className = 'sv';
   });
 }
 
-// ---------------------------------------------------------------------------
-// Interaction: drag start/target, click to add obstacle, right-click to remove
-// ---------------------------------------------------------------------------
-function getWorldPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width  / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const cx = (e.clientX - rect.left)  * scaleX;
-  const cy = (e.clientY - rect.top)   * scaleY;
-  const { wx, wy } = c2w(cx, cy);
-  return { wx, wy, cx, cy };
+// ─────────────────────────────────────────────────────────────────────────────
+// Obstacle UI panel
+// ─────────────────────────────────────────────────────────────────────────────
+function renderObsPanel() {
+  const list = document.getElementById('obs-list');
+  list.innerHTML = '';
+  obstacles.forEach((o, i) => {
+    const div = document.createElement('div');
+    div.className = 'obs-row';
+    div.innerHTML = `
+      <div class="obs-head">
+        <span>Obstacle ${i + 1}</span>
+        <button data-idx="${i}" title="Remove">×</button>
+      </div>
+      <div class="coords">
+        <div class="coord-field"><label>X (m)</label>
+          <input type="number" data-idx="${i}" data-key="x" value="${o.x}" step="0.1"></div>
+        <div class="coord-field"><label>Y (m)</label>
+          <input type="number" data-idx="${i}" data-key="y" value="${o.y}" step="0.1"></div>
+        <div class="coord-field"><label>Z (m)</label>
+          <input type="number" data-idx="${i}" data-key="z" value="${o.z}" step="0.1"></div>
+        <div class="coord-field"><label>Radius</label>
+          <input type="number" data-idx="${i}" data-key="r" value="${o.r}" step="0.05"></div>
+      </div>`;
+    list.appendChild(div);
+  });
+
+  list.querySelectorAll('.obs-head button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      obstacles.splice(parseInt(btn.dataset.idx), 1);
+      renderObsPanel();
+      rebuildObstacleMeshes();
+      clearTraj();
+    });
+  });
+
+  list.querySelectorAll('input[data-key]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const idx = parseInt(inp.dataset.idx);
+      obstacles[idx][inp.dataset.key] = parseFloat(inp.value);
+      rebuildObstacleMeshes();
+      clearTraj();
+    });
+  });
 }
 
-function inBounds(wx, wy) {
-  return wx >= X_BOUNDS[0] && wx <= X_BOUNDS[1] &&
-         wy >= Y_BOUNDS[0] && wy <= Y_BOUNDS[1];
+function clearTraj() {
+  if (trajLine) { scene.remove(trajLine); trajLine = null; }
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (droneSphere) droneSphere.visible = false;
+  clearStats();
 }
 
-function hitMarker(wx, wy, mx, my, thr) {
-  return Math.sqrt((wx - mx) ** 2 + (wy - my) ** 2) < thr;
+// ─────────────────────────────────────────────────────────────────────────────
+// Simulate
+// ─────────────────────────────────────────────────────────────────────────────
+function simulate() {
+  const btn = document.getElementById('btn-sim');
+
+  clearTraj();
+  rebuildMarkers();
+
+  const ka  = parseFloat(document.getElementById('ka').value);
+  const kr  = parseFloat(document.getElementById('kr').value);
+  const rho = parseFloat(document.getElementById('rho').value);
+  const sv  = readVec('sx','sy','sz');
+  const tv  = readVec('tx','ty','tz');
+
+  const result = apfSim(sv.x,sv.y,sv.z, tv.x,tv.y,tv.z, obstacles, ka, kr, rho);
+
+  trajPoints = result.traj;
+  drawTrajectory(trajPoints);
+  animateDrone(trajPoints);
+  setStats(result);
 }
 
-canvas.addEventListener("mousedown", e => {
-  if (e.button !== 0) return;
-  e.preventDefault();
-  const { wx, wy } = getWorldPos(e);
-  if (hitMarker(wx, wy, start.x, start.y, 0.25)) {
-    dragging = "start";
-  } else if (hitMarker(wx, wy, target.x, target.y, 0.25)) {
-    dragging = "target";
-  } else if (inBounds(wx, wy)) {
-    // Place obstacle
-    obstacles.push({ x: wx, y: wy, r: 0.38 });
-    stopAnim(); path = []; animStep = 0; clearStats();
-    draw();
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Reset
+// ─────────────────────────────────────────────────────────────────────────────
+function resetScene() {
+  obstacles = [
+    { x: 3.0, y: 2.8, z: -2.1, r: 0.38 },
+    { x: 4.5, y: 1.4, z: -2.1, r: 0.38 },
+    { x: 5.8, y: 2.5, z: -2.1, r: 0.38 },
+  ];
+  ['sx','sy','sz'].forEach((id,i)=> document.getElementById(id).value=[6.17,2.19,-2.15][i]);
+  ['tx','ty','tz'].forEach((id,i)=> document.getElementById(id).value=[-0.30,1.75,-2.00][i]);
+  document.getElementById('ka').value=30; document.getElementById('va').textContent='30';
+  document.getElementById('kr').value=10; document.getElementById('vr').textContent='10';
+  document.getElementById('rho').value=0.5; document.getElementById('vp').textContent='0.50';
+  renderObsPanel();
+  rebuildObstacleMeshes();
+  rebuildMarkers();
+  clearTraj();
+  camera.position.set(14, 8, -3);
+  controls.target.copy(sceneCenter);
+  controls.update();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Event wiring
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('btn-sim').addEventListener('click', simulate);
+document.getElementById('btn-reset').addEventListener('click', resetScene);
+document.getElementById('btn-add').addEventListener('click', () => {
+  obstacles.push({ x: 3.5, y: 2.0, z: -2.1, r: 0.38 });
+  renderObsPanel(); rebuildObstacleMeshes(); clearTraj();
 });
 
-canvas.addEventListener("mousemove", e => {
-  if (!dragging) return;
-  const { wx, wy } = getWorldPos(e);
-  if (!inBounds(wx, wy)) return;
-  if (dragging === "start")  { start.x  = wx; start.y  = wy; }
-  if (dragging === "target") { target.x = wx; target.y = wy; }
-  stopAnim(); path = []; animStep = 0; clearStats();
-  draw();
-});
-
-canvas.addEventListener("mouseup", () => { dragging = null; });
-canvas.addEventListener("mouseleave", () => { dragging = null; });
-
-canvas.addEventListener("contextmenu", e => {
-  e.preventDefault();
-  const { wx, wy } = getWorldPos(e);
-  const hitR = 0.5;
-  const before = obstacles.length;
-  obstacles = obstacles.filter(o =>
-    Math.sqrt((wx - o.x) ** 2 + (wy - o.y) ** 2) > o.r + hitR
-  );
-  if (obstacles.length !== before) {
-    stopAnim(); path = []; animStep = 0; clearStats(); draw();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Slider value display
-// ---------------------------------------------------------------------------
-["ka","kr","rho"].forEach(name => {
-  const sl = document.getElementById("sl-" + name);
-  const vl = document.getElementById("val-" + name);
-  sl.addEventListener("input", () => {
-    vl.textContent = parseFloat(sl.value).toFixed(name === "rho" ? 2 : 0);
-    if (path.length > 0) draw();  // redraw influence zones live
+[['ka','va',0],['kr','vr',0],['rho','vp',2]].forEach(([sl,vl,dec]) => {
+  document.getElementById(sl).addEventListener('input', () => {
+    document.getElementById(vl).textContent = parseFloat(document.getElementById(sl).value).toFixed(dec);
+    rebuildObstacleMeshes();  // update influence sphere size
   });
 });
 
-// ---------------------------------------------------------------------------
-// Buttons
-// ---------------------------------------------------------------------------
-document.getElementById("btn-simulate").addEventListener("click", runSimulation);
-document.getElementById("btn-reset").addEventListener("click", reset);
-document.getElementById("btn-clear").addEventListener("click", () => {
-  obstacles = [];
-  stopAnim(); path = []; animStep = 0; clearStats(); draw();
+['sx','sy','sz','tx','ty','tz'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    rebuildMarkers(); clearTraj();
+  });
 });
 
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Resize handler
+// ─────────────────────────────────────────────────────────────────────────────
+function onResize() {
+  const w = window.innerWidth - 260;
+  const h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render loop
+// ─────────────────────────────────────────────────────────────────────────────
+function render() {
+  requestAnimationFrame(render);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Init
-// ---------------------------------------------------------------------------
-draw();
+// ─────────────────────────────────────────────────────────────────────────────
+renderObsPanel();
+rebuildObstacleMeshes();
+rebuildMarkers();
+render();
+document.getElementById('loading').style.opacity = '0';
+setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
 </script>
 </body>
 </html>
