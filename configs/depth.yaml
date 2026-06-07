@@ -1,0 +1,38 @@
+# Depth estimation model and pipeline configuration
+
+model:
+  # Local path to ZoeDepth model weights (downloaded from HuggingFace)
+  # See README.md for download instructions (~1.5 GB)
+  path: "model/zoedepth-nyu-kitti"
+  # HuggingFace model ID if downloading fresh
+  hf_id: "isl-org/ZoeDepth"
+  hf_subfolder: "ZoeDepthNK"
+
+inference:
+  # Run depth estimation every N frames (higher = less frequent, lower latency impact)
+  # At 24 fps video, 250 frames ≈ ~10 seconds between depth updates
+  frame_interval: 250
+  # Number of recent UWB position readings to average before anchoring depth snapshot
+  position_average_window: 100
+  # K-means cluster count for depth segmentation
+  kmeans_clusters: 5
+  # Number of nearest depth clusters to treat as potential obstacles
+  dark_cluster_count: 3
+
+obstacle_filtering:
+  # Minimum connected-component area (pixels) to keep as a valid obstacle
+  min_area_px: 20000
+  # Morphological opening kernel size for noise removal
+  morph_kernel_size: 11
+  # Maximum allowed obstacle radius (metres) — filters spurious large detections
+  max_radius_m: 1.0
+  # Row density threshold — rows where this fraction of pixels are "obstacle" are masked
+  # (heuristic to remove floor/ceiling planes from segmentation)
+  row_filter_ratio: 0.85
+
+output:
+  # Directories for per-run image saves (created automatically at runtime)
+  original_frames: "img/original"
+  depth_frames: "img/depth"
+  annotated_frames: "img/annotated"
+  manual_frames: "img/manual"

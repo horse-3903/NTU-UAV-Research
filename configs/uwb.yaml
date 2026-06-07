@@ -1,0 +1,28 @@
+# UWB localisation system configuration
+# Hardware: Nooploop LinkTrack (https://www.nooploop.com/en/linktrack/)
+# ROS driver: nlink_parser (https://github.com/nooploop-dev/nlink_parser)
+
+ros:
+  # ROS topic published by the nlink_parser node
+  topic: "/nlink_linktrack_nodeframe1"
+  # ROS node name for the subscriber
+  node_name: "drone_subscriber"
+  # Index of the node in the nodes array to use for position
+  node_index: 0
+
+coordinate_frame:
+  # The UWB system outputs absolute 3D position.
+  # Convention used in this project:
+  #   X: forward (positive = further into room)
+  #   Y: lateral (positive = right)
+  #   Z: vertical (negative = up, matching anchor layout)
+  # Anchors must be placed and surveyed to match this convention.
+  description: "X-forward, Y-lateral, Z-vertical (negative up)"
+
+optitrack_alternative:
+  # If using OptiTrack instead of UWB:
+  #   1. Run cmd/optitrack.sh with the correct VRPN server IP
+  #   2. Subscribe to /vrpn_client_node/Drone_HCI/pose in main.py
+  #   3. Replace pos_arr extraction with PoseStamped position fields
+  vrpn_server_ip: "192.168.0.2"
+  ros_topic: "/vrpn_client_node/Drone_HCI/pose"

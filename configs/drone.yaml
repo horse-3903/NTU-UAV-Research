@@ -1,0 +1,32 @@
+# Drone connection and flight envelope configuration
+# These values reflect the test environment at NTU.
+# Adjust bounds to match your physical space before flight.
+
+connection:
+  # IP address of the Tello drone's Wi-Fi access point
+  ip: "192.168.10.1"
+  # Seconds to wait for connection before aborting
+  connection_timeout: 10.0
+
+video:
+  # Output resolution from the Tello camera
+  width: 960
+  height: 720
+  # Codec used by the Tello H.264 stream
+  codec: "h264"
+  # Target display frame rate (Pygame)
+  display_fps: 30
+  # Output directory for raw flight video
+  output_dir: "vid/raw"
+
+flight:
+  # World-frame bounds (metres) — drone lands immediately if exceeded
+  # Coordinate frame: X forward, Y lateral, Z vertical (negative = up)
+  x_bounds: [-0.50, 7.00]
+  y_bounds: [-0.50, 4.50]
+  z_bounds: [-3.75, -0.50]
+  # Battery percentage below which an emergency landing is triggered
+  battery_critical: 5
+  battery_warning: 10
+  # Seconds to wait after takeoff before starting navigation
+  takeoff_settle_time: 2.0

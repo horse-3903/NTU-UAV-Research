@@ -1,0 +1,35 @@
+# APF controller and navigation configuration
+
+apf:
+  # Attractive force coefficient — higher = stronger pull toward target
+  attract_coeff: 30
+  # Repulsive force coefficient — higher = stronger avoidance
+  repel_coeff: 10
+  # Obstacle influence radius (metres) — repulsion activates within this distance
+  influence_dist: 0.50
+  # Boundary influence distance (metres) — repulsion from flight bounds
+  bounds_influence_dist: 0.50
+
+navigation:
+  # Distance threshold (metres) for considering target reached
+  arrival_threshold: 0.30
+  # Attract coefficient is scaled down when drone is within this distance of target
+  # to prevent overshoot
+  close_range_threshold: 1.0
+  # Obstacle merge threshold (metres) — new obstacle within this distance of an
+  # existing one replaces it rather than being added separately
+  obstacle_merge_threshold: 0.50
+
+velocity:
+  # Maximum velocity command value sent to tellopy (0–100 scale)
+  max_command: 30
+  # Scalar multiplier on APF force before clamping to max_command
+  force_scalar: 1
+  # Sleep time (seconds) between control loop iterations to prevent command flooding
+  loop_sleep: 0.20
+
+logging:
+  # Base directory for per-run log files
+  log_dir: "logs"
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "DEBUG"
