@@ -240,6 +240,89 @@ controls.minDistance = 2;
 controls.maxDistance = 40;
 controls.update();
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Raycasting & 3-D drag
+// ─────────────────────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const dragPlane  = new THREE.Plane();
+let   dragTarget = null;  // { type:'obs'|'start'|'target', index? }
+
+function ndcFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  return new THREE.Vector2(
+     ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+    -((e.clientY - rect.top)  / rect.height) * 2 + 1,
+  );
+}
+
+function draggableMeshes() {
+  const list = [...obsMeshes];
+  if (startSphere)  list.push(startSphere.mesh);
+  if (targetSphere) list.push(targetSphere.mesh);
+  return list;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  raycaster.setFromCamera(ndcFromEvent(e), camera);
+  const hits = raycaster.intersectObjects(draggableMeshes());
+  if (!hits.length) return;
+
+  const obj = hits[0].object;
+  dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), obj.position);
+
+  const obsIdx = obsMeshes.indexOf(obj);
+  if      (obsIdx >= 0)                              dragTarget = { type: 'obs', index: obsIdx };
+  else if (startSphere  && obj === startSphere.mesh) dragTarget = { type: 'start' };
+  else if (targetSphere && obj === targetSphere.mesh) dragTarget = { type: 'target' };
+
+  if (dragTarget) {
+    controls.enabled = false;
+    canvas.style.cursor = 'grabbing';
+    e.stopPropagation();
+  }
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (!dragTarget) {
+    raycaster.setFromCamera(ndcFromEvent(e), camera);
+    canvas.style.cursor = raycaster.intersectObjects(draggableMeshes()).length ? 'grab' : 'default';
+    return;
+  }
+
+  raycaster.setFromCamera(ndcFromEvent(e), camera);
+  const pt = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(dragPlane, pt)) return;
+
+  // Inverse of w2t: wx=pt.x, wy=pt.z, wz=-pt.y
+  const wx = Math.max(X_BOUNDS[0], Math.min(X_BOUNDS[1], pt.x));
+  const wy = Math.max(Y_BOUNDS[0], Math.min(Y_BOUNDS[1], pt.z));
+
+  if (dragTarget.type === 'obs') {
+    const o = obstacles[dragTarget.index];
+    o.x = Math.round(wx * 100) / 100;
+    o.y = Math.round(wy * 100) / 100;
+    rebuildObstacleMeshes();
+    // Update panel inputs in-place (avoid full DOM rebuild during drag)
+    document.querySelectorAll(`#obs-list input[data-idx="${dragTarget.index}"]`).forEach(inp => {
+      if (inp.dataset.key === 'x') inp.value = o.x;
+      if (inp.dataset.key === 'y') inp.value = o.y;
+    });
+  } else if (dragTarget.type === 'start') {
+    document.getElementById('sx').value = Math.round(wx * 100) / 100;
+    document.getElementById('sy').value = Math.round(wy * 100) / 100;
+    rebuildMarkers();
+  } else if (dragTarget.type === 'target') {
+    document.getElementById('tx').value = Math.round(wx * 100) / 100;
+    document.getElementById('ty').value = Math.round(wy * 100) / 100;
+    rebuildMarkers();
+  }
+  simulateQuick();
+});
+
+canvas.addEventListener('pointerup',    () => { dragTarget = null; controls.enabled = true; canvas.style.cursor = 'default'; });
+canvas.addEventListener('pointerleave', () => { dragTarget = null; controls.enabled = true; });
+
 // Lights
 scene.add(new THREE.AmbientLight(0x304060, 1.2));
 const sun = new THREE.DirectionalLight(0xc8d8ff, 1.4);
@@ -617,25 +700,67 @@ function resetScene() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Live simulation (path only — no drone animation)
+// ─────────────────────────────────────────────────────────────────────────────
+function simulateQuick() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (trajLine)  { scene.remove(trajLine); trajLine = null; }
+  if (droneSphere) droneSphere.visible = false;
+
+  const ka  = parseFloat(document.getElementById('ka').value);
+  const kr  = parseFloat(document.getElementById('kr').value);
+  const rho = parseFloat(document.getElementById('rho').value);
+  const sv  = readVec('sx','sy','sz');
+  const tv  = readVec('tx','ty','tz');
+  const result = apfSim(sv.x,sv.y,sv.z, tv.x,tv.y,tv.z, obstacles, ka, kr, rho);
+  trajPoints = result.traj;
+  drawTrajectory(trajPoints);
+  setStats(result);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Event wiring
 // ─────────────────────────────────────────────────────────────────────────────
 document.getElementById('btn-sim').addEventListener('click', simulate);
 document.getElementById('btn-reset').addEventListener('click', resetScene);
 document.getElementById('btn-add').addEventListener('click', () => {
   obstacles.push({ x: 3.5, y: 2.0, z: -2.1, r: 0.38 });
-  renderObsPanel(); rebuildObstacleMeshes(); clearTraj();
+  renderObsPanel(); rebuildObstacleMeshes(); simulateQuick();
 });
 
-[['ka','va',0],['kr','vr',0],['rho','vp',2]].forEach(([sl,vl,dec]) => {
-  document.getElementById(sl).addEventListener('input', () => {
-    document.getElementById(vl).textContent = parseFloat(document.getElementById(sl).value).toFixed(dec);
-    rebuildObstacleMeshes();  // update influence sphere size
+// Sliders: update display + live sim on drag
+[['ka','va',0],['kr','vr',0],['rho','vp',2]].forEach(([slId, valId, dec]) => {
+  const sl  = document.getElementById(slId);
+  const val = document.getElementById(valId);
+  sl.addEventListener('input', () => {
+    val.textContent = parseFloat(sl.value).toFixed(dec);
+    rebuildObstacleMeshes();
+    simulateQuick();
+  });
+  // Blender-style drag on the value label
+  val.style.cursor = 'ew-resize';
+  val.title = 'Drag left/right to adjust';
+  let _startX, _startV;
+  val.addEventListener('pointerdown', e => {
+    _startX = e.clientX; _startV = parseFloat(sl.value);
+    val.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  val.addEventListener('pointermove', e => {
+    if (!e.buttons) return;
+    const range = parseFloat(sl.max) - parseFloat(sl.min);
+    const step  = parseFloat(sl.step) || 1;
+    const raw   = _startV + (e.clientX - _startX) * range / 200;
+    const snapped = Math.round(Math.max(parseFloat(sl.min), Math.min(parseFloat(sl.max), raw)) / step) * step;
+    sl.value = snapped;
+    val.textContent = snapped.toFixed(dec);
+    rebuildObstacleMeshes();
+    simulateQuick();
   });
 });
 
 ['sx','sy','sz','tx','ty','tz'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
-    rebuildMarkers(); clearTraj();
+    rebuildMarkers(); simulateQuick();
   });
 });
 
@@ -667,6 +792,7 @@ function render() {
 renderObsPanel();
 rebuildObstacleMeshes();
 rebuildMarkers();
+simulateQuick();
 render();
 document.getElementById('loading').style.opacity = '0';
 setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
