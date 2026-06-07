@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APF Navigator — NTU UAV Research</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --red:      #f85149;
+    --orange:   #d29922;
+    --purple:   #a371f7;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+    gap: 20px;
+  }
+
+  header {
+    text-align: center;
+  }
+  header h1 { font-size: 20px; font-weight: 600; color: var(--text); }
+  header p  { color: var(--muted); margin-top: 4px; font-size: 12px; }
+
+  .layout {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  canvas {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #0a0f17;
+    cursor: crosshair;
+    flex-shrink: 0;
+    max-width: 100%;
+  }
+
+  .sidebar {
+    flex: 0 0 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  @media (max-width: 800px) {
+    .layout { flex-direction: column; }
+    .sidebar { flex: 0 0 auto; width: 100%; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+
+  .panel h2 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .param { margin-bottom: 10px; }
+  .param label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .param label span { color: var(--accent); font-family: monospace; }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  button:hover { opacity: 0.85; }
+  button:active { opacity: 0.7; }
+
+  #btn-simulate { background: var(--accent); color: #000; border-color: var(--accent); }
+  #btn-reset    { background: transparent; color: var(--muted); }
+  #btn-clear    { background: transparent; color: var(--red); border-color: var(--red); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+  }
+  .stat .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+  .stat .value { font-size: 16px; font-weight: 600; margin-top: 2px; font-family: monospace; }
+  .stat .value.ok   { color: var(--green); }
+  .stat .value.warn { color: var(--orange); }
+  .stat .value.err  { color: var(--red); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    align-items: center;
+  }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .square {
+    display: inline-block;
+    width: 10px; height: 6px;
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    max-width: 700px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>APF Navigator — Interactive Demo</h1>
+  <p>NTU UAV Research · Artificial Potential Field obstacle avoidance · DJI Tello · ZoeDepth</p>
+</header>
+
+<div class="layout">
+  <canvas id="canvas" width="720" height="440"></canvas>
+
+  <div class="sidebar">
+
+    <div class="panel">
+      <h2>APF Parameters</h2>
+      <div class="param">
+        <label>Attraction k<sub>a</sub> <span id="val-ka">30</span></label>
+        <input type="range" id="sl-ka" min="1" max="80" value="30" step="1">
+      </div>
+      <div class="param">
+        <label>Repulsion k<sub>r</sub> <span id="val-kr">10</span></label>
+        <input type="range" id="sl-kr" min="1" max="60" value="10" step="1">
+      </div>
+      <div class="param">
+        <label>Influence ρ₀ (m) <span id="val-rho">0.50</span></label>
+        <input type="range" id="sl-rho" min="0.1" max="2.5" value="0.5" step="0.05">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Controls</h2>
+      <div class="btn-row">
+        <button id="btn-simulate">Simulate</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button id="btn-clear">Clear obstacles</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Results</h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="label">Status</div>
+          <div class="value" id="stat-status">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Steps</div>
+          <div class="value" id="stat-steps">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Path (m)</div>
+          <div class="value" id="stat-path">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Min clearance</div>
+          <div class="value" id="stat-clear">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Legend</h2>
+      <div class="legend">
+        <span><span class="dot" style="background:#3fb950"></span>Start</span>
+        <span><span class="dot" style="background:#f85149"></span>Target</span>
+        <span><span class="dot" style="background:#e09020"></span>Obstacle</span>
+        <span><span class="dot" style="background:#58a6ff"></span>Path</span>
+        <span><span class="square" style="background:#30363d"></span>Flight bounds</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="hint">
+  Drag <b style="color:var(--green)">start</b> or <b style="color:var(--red)">target</b> to reposition &nbsp;·&nbsp;
+  Click anywhere in the flight space to place an obstacle &nbsp;·&nbsp;
+  Right-click an obstacle to remove it
+</p>
+
+<script>
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+const X_BOUNDS = [-0.5, 7.0];
+const Y_BOUNDS = [-0.5, 4.5];
+const Z = -2.1;  // fixed flight height for 2-D demo
+
+const DEFAULT_START  = { x: 6.17, y: 2.19 };
+const DEFAULT_TARGET = { x: -0.30, y: 1.75 };
+const DEFAULT_OBSTACLES = [
+  { x: 3.0, y: 2.8, r: 0.38 },
+  { x: 4.5, y: 1.4, r: 0.38 },
+  { x: 5.8, y: 2.5, r: 0.38 },
+];
+
+const MAX_STEPS = 1200;
+const ARRIVAL   = 0.30;
+const SCALE_M   = 0.003;  // m/step per command unit (smaller → smoother animation, ~100 steps)
+const MAX_CMD   = 30;
+
+// ---------------------------------------------------------------------------
+// Canvas setup
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById("canvas");
+const ctx    = canvas.getContext("2d");
+
+const MARGIN  = 38;
+const FIELD_W = canvas.width  - 2 * MARGIN;
+const FIELD_H = canvas.height - 2 * MARGIN;
+const PX_PER_M_X = FIELD_W / (X_BOUNDS[1] - X_BOUNDS[0]);
+const PX_PER_M_Y = FIELD_H / (Y_BOUNDS[1] - Y_BOUNDS[0]);
+
+function w2c(wx, wy) {
+  return {
+    cx: MARGIN + (wx - X_BOUNDS[0]) * PX_PER_M_X,
+    cy: canvas.height - MARGIN - (wy - Y_BOUNDS[0]) * PX_PER_M_Y,
+  };
+}
+function c2w(cx, cy) {
+  return {
+    wx: (cx - MARGIN) / PX_PER_M_X + X_BOUNDS[0],
+    wy: (canvas.height - MARGIN - cy) / PX_PER_M_Y + Y_BOUNDS[0],
+  };
+}
+function obsRadiusPx(r) {
+  return r * PX_PER_M_X;
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let start     = { ...DEFAULT_START };
+let target    = { ...DEFAULT_TARGET };
+let obstacles = DEFAULT_OBSTACLES.map(o => ({ ...o }));
+let path      = [];   // [{x,y}]
+let animStep  = 0;
+let animId    = null;
+
+// drag state
+let dragging  = null;  // "start" | "target" | null
+
+// ---------------------------------------------------------------------------
+// APF simulation (JS port of task/apf.py + follow_path.py)
+// ---------------------------------------------------------------------------
+function wallForce(coord, lo, hi, dwall, kr) {
+  let f = 0;
+  const dLo = coord - lo;
+  const dHi = hi - coord;
+  if (dLo > 0 && dLo < dwall) f += kr * ((1 / dLo) - (1 / dwall)) / (dLo * dLo);
+  if (dHi > 0 && dHi < dwall) f -= kr * ((1 / dHi) - (1 / dwall)) / (dHi * dHi);
+  return f;
+}
+
+function apfSim(sx, sy, tx, ty, obs, ka, kr, rho, maxSteps) {
+  let cx = sx;
+  let cy = sy;
+  const traj = [{ x: cx, y: cy }];
+  let pathLen = 0;
+  let minClear = Infinity;
+  let converged = false;
+
+  for (let i = 0; i < maxSteps; i++) {
+    const dx = tx - cx, dy = ty - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= ARRIVAL) { converged = true; break; }
+
+    const ka_eff = dist < 1.0 ? Math.max(10, ka * dist) : ka;
+
+    // Attractive force
+    const fax = ka_eff * dx;
+    const fay = ka_eff * dy;
+
+    // Repulsive force from obstacles
+    let frx = 0, fry = 0;
+    for (const o of obs) {
+      const ex = cx - o.x, ey = cy - o.y;
+      const dObs = Math.max(Math.sqrt(ex * ex + ey * ey) - o.r, 1e-6);
+      if (dObs < rho) {
+        const mag = kr * ((1 / dObs) - (1 / rho)) / (dObs * dObs);
+        const len = Math.sqrt(ex * ex + ey * ey) || 1e-9;
+        frx += mag * ex / len;
+        fry += mag * ey / len;
+      }
+      // track clearance
+      const clearance = Math.max(Math.sqrt(ex * ex + ey * ey) - o.r, 0);
+      if (clearance < minClear) minClear = clearance;
+    }
+
+    // Boundary repulsion (correct APF: d = distance to wall)
+    frx += wallForce(cx, X_BOUNDS[0], X_BOUNDS[1], 0.5, kr);
+    fry += wallForce(cy, Y_BOUNDS[0], Y_BOUNDS[1], 0.5, kr);
+
+    const totalX = fax + frx;
+    const totalY = fay + fry;
+
+    const vx = Math.max(-MAX_CMD, Math.min(MAX_CMD, totalX / dist)) * SCALE_M;
+    const vy = Math.max(-MAX_CMD, Math.min(MAX_CMD, totalY / dist)) * SCALE_M;
+
+    const nx = Math.max(X_BOUNDS[0], Math.min(X_BOUNDS[1], cx + vx));
+    const ny = Math.max(Y_BOUNDS[0], Math.min(Y_BOUNDS[1], cy + vy));
+
+    const stepLen = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
+    pathLen += stepLen;
+
+    cx = nx; cy = ny;
+    traj.push({ x: cx, y: cy });
+  }
+
+  return {
+    traj,
+    converged,
+    steps: traj.length - 1,
+    pathLen: Math.round(pathLen * 1000) / 1000,
+    minClear: obs.length > 0 ? Math.round(minClear * 1000) / 1000 : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Flight space background
+  const { cx: bx0, cy: by1 } = w2c(X_BOUNDS[0], Y_BOUNDS[0]);
+  const { cx: bx1, cy: by0 } = w2c(X_BOUNDS[1], Y_BOUNDS[1]);
+  ctx.fillStyle = "#0c1119";
+  ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
+
+  // Grid lines (every 1 m)
+  ctx.strokeStyle = "#1a2030";
+  ctx.lineWidth = 0.5;
+  for (let gx = Math.ceil(X_BOUNDS[0]); gx <= X_BOUNDS[1]; gx++) {
+    const { cx } = w2c(gx, 0);
+    ctx.beginPath(); ctx.moveTo(cx, by0); ctx.lineTo(cx, by1); ctx.stroke();
+  }
+  for (let gy = Math.ceil(Y_BOUNDS[0]); gy <= Y_BOUNDS[1]; gy++) {
+    const { cy } = w2c(0, gy);
+    ctx.beginPath(); ctx.moveTo(bx0, cy); ctx.lineTo(bx1, cy); ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = "#3d4a5a";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "center";
+  for (let gx = 0; gx <= 6; gx += 2) {
+    const { cx } = w2c(gx, 0);
+    ctx.fillText(gx + "m", cx, by1 + 14);
+  }
+  ctx.textAlign = "right";
+  for (let gy = 0; gy <= 4; gy += 2) {
+    const { cy } = w2c(0, gy);
+    ctx.fillText(gy + "m", bx0 - 4, cy + 3);
+  }
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#2d3748";
+  ctx.fillText("X →", bx1 - 24, by1 + 14);
+  ctx.save(); ctx.translate(bx0 - 20, by0 + 20); ctx.rotate(-Math.PI/2);
+  ctx.fillText("Y →", 0, 0); ctx.restore();
+
+  // Influence zones (semi-transparent circles around obstacles)
+  const rho = parseFloat(document.getElementById("sl-rho").value);
+  for (const o of obstacles) {
+    const { cx, cy } = w2c(o.x, o.y);
+    const rPx = obsRadiusPx(rho);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rPx, 0, 2 * Math.PI);
+    ctx.fillStyle = "rgba(210, 153, 34, 0.07)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(210, 153, 34, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Path (drawn up to animStep)
+  if (path.length > 1) {
+    const steps = Math.min(animStep, path.length - 1);
+    ctx.beginPath();
+    const p0 = w2c(path[0].x, path[0].y);
+    ctx.moveTo(p0.cx, p0.cy);
+    for (let i = 1; i <= steps; i++) {
+      const { cx, cy } = w2c(path[i].x, path[i].y);
+      ctx.lineTo(cx, cy);
+    }
+    ctx.strokeStyle = "#58a6ff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Obstacles
+  for (const o of obstacles) {
+    const { cx, cy } = w2c(o.x, o.y);
+    const rPx = obsRadiusPx(o.r);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rPx, 0, 2 * Math.PI);
+    const grad = ctx.createRadialGradient(cx - rPx * 0.3, cy - rPx * 0.3, 1, cx, cy, rPx);
+    grad.addColorStop(0, "#f0a030");
+    grad.addColorStop(1, "#7a4010");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#d29922";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Target marker
+  {
+    const { cx, cy } = w2c(target.x, target.y);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = "#f85149";
+    ctx.fill();
+    ctx.strokeStyle = "#ff7b72";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // crosshair
+    ctx.strokeStyle = "rgba(248,81,73,0.5)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#e6edf3";
+    ctx.font = "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("T", cx, cy + 3.5);
+  }
+
+  // Start marker
+  {
+    const { cx, cy } = w2c(start.x, start.y);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = "#3fb950";
+    ctx.fill();
+    ctx.strokeStyle = "#7ee787";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#0d1117";
+    ctx.font = "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("S", cx, cy + 3.5);
+  }
+
+  // Animated drone position
+  if (path.length > 0 && animStep > 0) {
+    const idx = Math.min(animStep, path.length - 1);
+    const { cx, cy } = w2c(path[idx].x, path[idx].y);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = "#a371f7";
+    ctx.fill();
+    ctx.strokeStyle = "#d2a8ff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Simulation trigger
+// ---------------------------------------------------------------------------
+function runSimulation() {
+  stopAnim();
+  path = [];
+  animStep = 0;
+
+  const ka  = parseFloat(document.getElementById("sl-ka").value);
+  const kr  = parseFloat(document.getElementById("sl-kr").value);
+  const rho = parseFloat(document.getElementById("sl-rho").value);
+
+  const result = apfSim(
+    start.x, start.y, target.x, target.y,
+    obstacles, ka, kr, rho, MAX_STEPS
+  );
+
+  path = result.traj;
+
+  // Update stats
+  const statusEl = document.getElementById("stat-status");
+  statusEl.textContent = result.converged ? "Converged" : "Timeout";
+  statusEl.className = "value " + (result.converged ? "ok" : "err");
+
+  document.getElementById("stat-steps").textContent = result.steps;
+  document.getElementById("stat-path").textContent  = result.pathLen.toFixed(2);
+
+  const clearEl = document.getElementById("stat-clear");
+  if (result.minClear !== null) {
+    clearEl.textContent = result.minClear.toFixed(2) + " m";
+    clearEl.className   = "value " + (result.minClear < 0.1 ? "err" : result.minClear < 0.25 ? "warn" : "ok");
+  } else {
+    clearEl.textContent = "N/A";
+    clearEl.className   = "value";
+  }
+
+  animateResult();
+}
+
+function animateResult() {
+  animStep = 0;
+  let last = 0;
+  const fps = 60;
+  const stepsPerFrame = Math.max(1, Math.floor(path.length / (fps * 3)));
+
+  function frame(ts) {
+    if (ts - last >= 1000 / fps) {
+      animStep = Math.min(animStep + stepsPerFrame, path.length - 1);
+      last = ts;
+      draw();
+    }
+    if (animStep < path.length - 1) {
+      animId = requestAnimationFrame(frame);
+    }
+  }
+  animId = requestAnimationFrame(frame);
+}
+
+function stopAnim() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+}
+
+// ---------------------------------------------------------------------------
+// Reset
+// ---------------------------------------------------------------------------
+function reset() {
+  stopAnim();
+  start     = { ...DEFAULT_START };
+  target    = { ...DEFAULT_TARGET };
+  obstacles = DEFAULT_OBSTACLES.map(o => ({ ...o }));
+  path      = [];
+  animStep  = 0;
+  clearStats();
+  draw();
+}
+
+function clearStats() {
+  ["stat-status","stat-steps","stat-path","stat-clear"].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = "—";
+    el.className = "value";
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Interaction: drag start/target, click to add obstacle, right-click to remove
+// ---------------------------------------------------------------------------
+function getWorldPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const cx = (e.clientX - rect.left)  * scaleX;
+  const cy = (e.clientY - rect.top)   * scaleY;
+  const { wx, wy } = c2w(cx, cy);
+  return { wx, wy, cx, cy };
+}
+
+function inBounds(wx, wy) {
+  return wx >= X_BOUNDS[0] && wx <= X_BOUNDS[1] &&
+         wy >= Y_BOUNDS[0] && wy <= Y_BOUNDS[1];
+}
+
+function hitMarker(wx, wy, mx, my, thr) {
+  return Math.sqrt((wx - mx) ** 2 + (wy - my) ** 2) < thr;
+}
+
+canvas.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const { wx, wy } = getWorldPos(e);
+  if (hitMarker(wx, wy, start.x, start.y, 0.25)) {
+    dragging = "start";
+  } else if (hitMarker(wx, wy, target.x, target.y, 0.25)) {
+    dragging = "target";
+  } else if (inBounds(wx, wy)) {
+    // Place obstacle
+    obstacles.push({ x: wx, y: wy, r: 0.38 });
+    stopAnim(); path = []; animStep = 0; clearStats();
+    draw();
+  }
+});
+
+canvas.addEventListener("mousemove", e => {
+  if (!dragging) return;
+  const { wx, wy } = getWorldPos(e);
+  if (!inBounds(wx, wy)) return;
+  if (dragging === "start")  { start.x  = wx; start.y  = wy; }
+  if (dragging === "target") { target.x = wx; target.y = wy; }
+  stopAnim(); path = []; animStep = 0; clearStats();
+  draw();
+});
+
+canvas.addEventListener("mouseup", () => { dragging = null; });
+canvas.addEventListener("mouseleave", () => { dragging = null; });
+
+canvas.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const { wx, wy } = getWorldPos(e);
+  const hitR = 0.5;
+  const before = obstacles.length;
+  obstacles = obstacles.filter(o =>
+    Math.sqrt((wx - o.x) ** 2 + (wy - o.y) ** 2) > o.r + hitR
+  );
+  if (obstacles.length !== before) {
+    stopAnim(); path = []; animStep = 0; clearStats(); draw();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Slider value display
+// ---------------------------------------------------------------------------
+["ka","kr","rho"].forEach(name => {
+  const sl = document.getElementById("sl-" + name);
+  const vl = document.getElementById("val-" + name);
+  sl.addEventListener("input", () => {
+    vl.textContent = parseFloat(sl.value).toFixed(name === "rho" ? 2 : 0);
+    if (path.length > 0) draw();  // redraw influence zones live
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Buttons
+// ---------------------------------------------------------------------------
+document.getElementById("btn-simulate").addEventListener("click", runSimulation);
+document.getElementById("btn-reset").addEventListener("click", reset);
+document.getElementById("btn-clear").addEventListener("click", () => {
+  obstacles = [];
+  stopAnim(); path = []; animStep = 0; clearStats(); draw();
+});
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+draw();
+</script>
+</body>
+</html>
