@@ -10,7 +10,7 @@ Real-time UAV obstacle avoidance using monocular depth estimation, UWB localisat
 [![License](https://img.shields.io/github/license/horse-3903/NTU-UAV-Research?style=flat-square)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/horse-3903/NTU-UAV-Research?style=flat-square)](../../commits)
 
-### [Live Demo: APF 3D Navigator](https://horse-3903.onrender.com/ntu-uav-research-demo.html)
+### [Live Demo: APF 3D Navigator](https://horse-3903.github.io/showcase/ntu-uav-research)
 
 </div>
 
