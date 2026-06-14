@@ -83,3 +83,6 @@ Thumbs.db
 
 # Emacs
 .#*
+
+# Claude Code local config
+.claude/
