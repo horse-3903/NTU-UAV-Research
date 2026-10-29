@@ -49,17 +49,17 @@ The result is an end-to-end system that takes live sensor inputs and produces dr
 
 Monocular depth estimation from deep neural networks has matured significantly since the seminal work of Eigen et al. (2014). Recent models such as MiDaS (Ranftl et al., 2020), DPT (Ranftl et al., 2021), and ZoeDepth (Bhat et al., 2023) achieve competitive metric depth accuracy on indoor benchmarks without stereo calibration.
 
-For UAV applications, monocular depth has been explored primarily in simulation or with post-processed video. Deploying it in a real-time control loop introduces a fundamental tension: inference latency versus control frequency. On a mid-range GPU, ZoeDepth processes a 960×720 frame in approximately 0.5–2 seconds, making per-frame inference impractical for 30 Hz control. This project resolves the tension by decoupling the depth update rate from the control loop rate: depth estimation runs every 250 frames (~10 s at 24 fps) while the APF controller runs at the UWB callback rate (~5–10 Hz).
+For UAV applications, monocular depth has been explored primarily in simulation or with post-processed video. Deploying it in a real-time control loop introduces a fundamental tension: inference latency versus control frequency. On a mid-range GPU, ZoeDepth processes a 960×720 frame in approximately 0.5-2 seconds, making per-frame inference impractical for 30 Hz control. This project resolves the tension by decoupling the depth update rate from the control loop rate: depth estimation runs every 250 frames (~10 s at 24 fps) while the APF controller runs at the UWB callback rate (~5-10 Hz).
 
 ### 2.2 UWB Localisation
 
-Ultra-Wideband (UWB) time-difference-of-arrival (TDoA) and two-way ranging (TWR) systems have emerged as a practical alternative to motion capture for indoor localisation. The Nooploop LinkTrack system achieves sub-decimetre position accuracy at ~100 Hz update rates, well within the requirements of a 5 Hz control loop. Unlike visual-inertial odometry, UWB is robust to lighting changes and motion blur — precisely the conditions that degrade monocular depth estimation.
+Ultra-Wideband (UWB) time-difference-of-arrival (TDoA) and two-way ranging (TWR) systems have emerged as a practical alternative to motion capture for indoor localisation. The Nooploop LinkTrack system achieves sub-decimetre position accuracy at ~100 Hz update rates, well within the requirements of a 5 Hz control loop. Unlike visual-inertial odometry, UWB is robust to lighting changes and motion blur, precisely the conditions that degrade monocular depth estimation.
 
 The combination of UWB (for position) and monocular depth (for obstacle detection) is therefore complementary: UWB provides a stable world-frame anchor while depth provides local obstacle geometry.
 
 ### 2.3 Artificial Potential Fields
 
-APF, introduced by Khatib (1986), represents the environment as a scalar potential function whose negative gradient gives the robot's desired velocity. The potential has an attractive component toward the goal and repulsive components around obstacles. APF has well-known limitations — most notably local minima and oscillation in narrow corridors — but it is computationally trivial (linear in the number of obstacles), inherently continuous, and easy to extend with boundary walls. For a prototype system with a small, bounded flight space and a single primary goal, these properties are well matched to the task.
+APF, introduced by Khatib (1986), represents the environment as a scalar potential function whose negative gradient gives the robot's desired velocity. The potential has an attractive component toward the goal and repulsive components around obstacles. APF has well-known limitations, most notably local minima and oscillation in narrow corridors, but it is computationally trivial (linear in the number of obstacles), inherently continuous, and easy to extend with boundary walls. For a prototype system with a small, bounded flight space and a single primary goal, these properties are well matched to the task.
 
 ---
 
@@ -89,7 +89,7 @@ Video thread (PyAV, ~24 fps)
 
 The UWB callback is the primary control tick. The video thread runs independently and updates the obstacle map at a lower rate. This separation ensures that video decode errors or slow depth inference do not stall the control loop.
 
-All state — current position, obstacle list, target position, model handles — is held on the `TelloDrone` object. Thread safety is achieved implicitly: the obstacle list is only written by the depth thread and only read by the control thread, with no locking. This is acceptable given the low write frequency (once per 250 frames) and the tolerance of the APF controller to stale obstacle data.
+All state: current position, obstacle list, target position, model handles, is held on the `TelloDrone` object. Thread safety is achieved implicitly: the obstacle list is only written by the depth thread and only read by the control thread, with no locking. This is acceptable given the low write frequency (once per 250 frames) and the tolerance of the APF controller to stale obstacle data.
 
 ---
 
@@ -183,10 +183,10 @@ $$
 
 Depth inference runs every 250 video frames. At 24 fps, this is approximately one depth update every 10.4 seconds. The design trade-off is:
 
-- **Too frequent:** ZoeDepth inference on CPU can take 2–10 s per frame, blocking the depth thread and starving the video writer.
+- **Too frequent:** ZoeDepth inference on CPU can take 2-10 s per frame, blocking the depth thread and starving the video writer.
 - **Too infrequent:** The obstacle map becomes stale as the drone moves.
 
-At the commanded speeds (maximum 30/100 scale ≈ ~1–2 m/s), the drone travels at most 20 m between depth updates, which would be catastrophic in a 7.5 × 5 m space. In practice, the approach speed toward obstacles is slow enough (and APF forces are reactive) that the 10 s update rate is tolerable for the prototype, but is a clear area for improvement (see §15.1).
+At the commanded speeds (maximum 30/100 scale ≈ ~1-2 m/s), the drone travels at most 20 m between depth updates, which would be catastrophic in a 7.5 × 5 m space. In practice, the approach speed toward obstacles is slow enough (and APF forces are reactive) that the 10 s update rate is tolerable for the prototype, but is a clear area for improvement (see §15.1).
 
 ### 6.4 Position Anchoring
 
@@ -210,7 +210,7 @@ The obstacle detection pipeline in `task/tellodrone/map_obstacle.py` converts a 
 
 The depth map $D \in \mathbb{R}^{H \times W}$ is flattened to a vector of $H \cdot W$ scalar depth values. $k$-means clustering (OpenCV `cv2.kmeans`) partitions these values into $k = 5$ clusters with centres $\{c_1, c_2, c_3, c_4, c_5\}$, sorted by depth value. The output is a label map $L \in \{0, 1, 2, 3, 4\}^{H \times W}$ assigning each pixel to its nearest cluster.
 
-The rationale for depth-space clustering (rather than spatial clustering) is that nearby objects form coherent regions in depth — a wall at 2 m occupies a different cluster from a chair at 0.8 m — making the clusters a natural proxy for distinct surfaces in the scene.
+The rationale for depth-space clustering (rather than spatial clustering) is that nearby objects form coherent regions in depth, a wall at 2 m occupies a different cluster from a chair at 0.8 m, making the clusters a natural proxy for distinct surfaces in the scene.
 
 ### 7.3 Near-Cluster Extraction and Filtering
 
@@ -236,7 +236,7 @@ $$
 \text{keep component } c \iff \text{area}(c) > 20{,}000 \text{ px}^2
 $$
 
-At 960×720 resolution, this minimum area corresponds to roughly a 141×141 px region — approximately an object subtending 15% of the frame width, which at 1 m depth corresponds to a real-world object of ~0.3 m width.
+At 960×720 resolution, this minimum area corresponds to roughly a 141×141 px region, approximately an object subtending 15% of the frame width, which at 1 m depth corresponds to a real-world object of ~0.3 m width.
 
 ### 7.4 Contour Detection and Minimum Enclosing Circle
 
@@ -466,15 +466,15 @@ A `threading.Event` (`stop_video_thread_event`) coordinates clean shutdown of th
 
 Three log artefacts are written per flight:
 
-- `logs/log-<run>/log-info.log` — human-readable INFO/DEBUG/ERROR log with timestamps
-- `logs/log-<run>/log-pos.log` — line-delimited UWB position readings (timestamp, elapsed seconds, x, y, z)
-- `logs/log-<run>/log-config.json` — JSON snapshot of takeoff position, start position, end position, target, and full obstacle list at shutdown
+- `logs/log-<run>/log-info.log`: human-readable INFO/DEBUG/ERROR log with timestamps
+- `logs/log-<run>/log-pos.log`: line-delimited UWB position readings (timestamp, elapsed seconds, x, y, z)
+- `logs/log-<run>/log-config.json`: JSON snapshot of takeoff position, start position, end position, target, and full obstacle list at shutdown
 
 Image artefacts:
 
-- `img/original/<run>/frame-<N>.png` — raw camera frame at depth cycle $N$
-- `img/depth/<run>/frame-<N>.png` — normalised depth map
-- `img/annotated/<run>/frame-<N>.png` — frame with obstacle bounding circles and 3D coordinates overlaid
+- `img/original/<run>/frame-<N>.png`: raw camera frame at depth cycle $N$
+- `img/depth/<run>/frame-<N>.png`: normalised depth map
+- `img/annotated/<run>/frame-<N>.png`: frame with obstacle bounding circles and 3D coordinates overlaid
 
 ---
 
@@ -561,7 +561,7 @@ Safety is implemented as a layered set of shutdown triggers, all of which call `
 | Out of bounds | Outside configured flight envelope | UWB callback, every step |
 | Keyboard interrupt | Ctrl+C | `signal.SIGINT` handler |
 | Drone not connected | Connection timeout | Startup check |
-| Pygame window closed | — | Display thread exit |
+| Pygame window closed |, | Display thread exit |
 
 The `shutdown()` method attempts a clean land regardless of error state:
 
@@ -582,7 +582,7 @@ def shutdown(self, error=False, reason=None):
 
 ### 14.1 Depth Estimation Latency
 
-A ZoeDepth inference pass on CPU takes approximately 2–10 seconds per frame depending on hardware. During this time, the depth thread blocks the image write pipeline. The obstacle map is not updated, meaning the drone may move significantly between depth cycles. On GPU (e.g. NVIDIA RTX 3060), inference takes approximately 0.3–0.8 s, reducing this window substantially.
+A ZoeDepth inference pass on CPU takes approximately 2-10 seconds per frame depending on hardware. During this time, the depth thread blocks the image write pipeline. The obstacle map is not updated, meaning the drone may move significantly between depth cycles. On GPU (e.g. NVIDIA RTX 3060), inference takes approximately 0.3-0.8 s, reducing this window substantially.
 
 **Consequence:** The drone may navigate through a region before its obstacles are detected.
 
@@ -598,7 +598,7 @@ A ZoeDepth inference pass on CPU takes approximately 2–10 seconds per frame de
 
 ### 14.3 UWB Multipath and Dropout
 
-In environments with metal surfaces or dynamic occlusion of UWB anchors, position jumps of 0.5–1 m can occur. The current system applies no filtering to the raw UWB stream for control purposes.
+In environments with metal surfaces or dynamic occlusion of UWB anchors, position jumps of 0.5-1 m can occur. The current system applies no filtering to the raw UWB stream for control purposes.
 
 **Consequence:** A position jump can trigger a false out-of-bounds detection and an immediate emergency landing.
 
@@ -616,7 +616,7 @@ The $(-0.4, -0.4, -0.4)$ m camera-to-tag offset in `compute_3d()` is hardcoded a
 
 ### 14.6 No Temporal Fusion of Depth
 
-Each ZoeDepth output is processed independently. There is no tracking of obstacles across frames — an obstacle detected in frame 250 is simply merged (by proximity) with the list from the prior cycle. This means:
+Each ZoeDepth output is processed independently. There is no tracking of obstacles across frames, an obstacle detected in frame 250 is simply merged (by proximity) with the list from the prior cycle. This means:
 
 - Moving obstacles are not tracked (only their last detected position is stored).
 - A stationary obstacle that the drone has passed will remain in the list until its position falls outside the flight bounds.
@@ -629,9 +629,9 @@ Each ZoeDepth output is processed independently. There is no tracking of obstacl
 
 Flight testing was conducted in an NTU lab space with three stacked foam-mat columns used as obstacles, arranged across a 6.5 m traversal path from the drone's start position $(6.17, 2.19, -2.15)$ to the target $(-0.30, 1.75, -2.00)$.
 
-**Obstacle avoidance success rate:** 70–80% across multiple runs. Failure cases were traced to two primary causes:
+**Obstacle avoidance success rate:** 70-80% across multiple runs. Failure cases were traced to two primary causes:
 
-1. The ZoeDepth obstacle map was stale when the drone entered the obstacle region — at 250-frame inference intervals (~10 s), the drone had already moved significantly before a fresh depth update arrived.
+1. The ZoeDepth obstacle map was stale when the drone entered the obstacle region, at 250-frame inference intervals (~10 s), the drone had already moved significantly before a fresh depth update arrived.
 2. APF local minima in configurations where the center obstacle column fell directly on the attractive force axis, causing the drone to stall.
 
 **Flight duration:** APF-only controller completed the 6.5 m traverse in approximately 45 seconds with significant lateral oscillation. APF with PID control reduced this to approximately 25 seconds with a notably smoother sinusoidal path, a **~44% reduction in flight time**.
@@ -640,11 +640,11 @@ Flight testing was conducted in an NTU lab space with three stacked foam-mat col
 
 Recorded UWB position logs from two representative flights are shown in `assets/trajectory_apf_raw.jpg` (APF only) and `assets/trajectory_apf_pid.jpg` (APF + PID).
 
-**APF only (raw):** The X-axis trace shows steady monotonic decrease from $x \approx 6$ to $x \approx 0.3$ over 45 s, confirming the drone traversed the full room length. The Y-axis shows large excursions (0.5–3.8 m range) reflecting obstacle avoidance deviations and oscillation. The Z-axis trace is noisy ($\pm 0.5$ m variance) indicating altitude instability. The 3D scatter plot shows a non-smooth path with sharp angular deviations near the obstacle region.
+**APF only (raw):** The X-axis trace shows steady monotonic decrease from $x \approx 6$ to $x \approx 0.3$ over 45 s, confirming the drone traversed the full room length. The Y-axis shows large excursions (0.5-3.8 m range) reflecting obstacle avoidance deviations and oscillation. The Z-axis trace is noisy ($\pm 0.5$ m variance) indicating altitude instability. The 3D scatter plot shows a non-smooth path with sharp angular deviations near the obstacle region.
 
-**APF + PID:** X decreases smoothly from $\approx 6$ to $\approx 0.3$ over 25 s. Y traces a clean single-period sinusoidal curve (2.2–3.3 m excursion), consistent with planned path-following behaviour. Z stabilises at approximately $-2.1$ m for the majority of the flight (0.1 m variance), showing substantially improved altitude hold. The 3D scatter shows a smooth, coherent trajectory.
+**APF + PID:** X decreases smoothly from $\approx 6$ to $\approx 0.3$ over 25 s. Y traces a clean single-period sinusoidal curve (2.2-3.3 m excursion), consistent with planned path-following behaviour. Z stabilises at approximately $-2.1$ m for the majority of the flight (0.1 m variance), showing substantially improved altitude hold. The 3D scatter shows a smooth, coherent trajectory.
 
-The PID controller's role is primarily **error correction along planned waypoints** rather than obstacle avoidance per se — it keeps the drone on a pre-computed path while the APF handles reactive deflection around detected obstacles.
+The PID controller's role is primarily **error correction along planned waypoints** rather than obstacle avoidance per se, it keeps the drone on a pre-computed path while the APF handles reactive deflection around detected obstacles.
 
 ---
 
@@ -654,11 +654,11 @@ The PID controller's role is primarily **error correction along planned waypoint
 
 The central design tension in this system is that ZoeDepth inference is slow relative to the UAV's control bandwidth. The gap between obstacle map update rate (~0.1 Hz) and control rate (~5 Hz) means the drone is operating primarily on a frozen obstacle map. For low-speed navigation in structured environments (slow-moving drone, static obstacles), this is acceptable. For higher-speed or dynamic scenarios, it is not.
 
-Lighter models (MiDaS small, Depth Anything small) achieve inference rates of 10–30 Hz on a mid-range GPU, which would enable near-per-frame depth updates. The trade-off is reduced metric accuracy on indoor scenes.
+Lighter models (MiDaS small, Depth Anything small) achieve inference rates of 10-30 Hz on a mid-range GPU, which would enable near-per-frame depth updates. The trade-off is reduced metric accuracy on indoor scenes.
 
 ### 15.2 UWB vs. Visual Odometry
 
-UWB provides accurate absolute position but requires physical infrastructure (anchor installation and surveying). Visual-inertial odometry (VIO) can achieve similar accuracy in textured environments without fixed infrastructure, at the cost of drift over time. A hybrid approach — VIO for relative motion, UWB for periodic drift correction — would be more deployable across environments.
+UWB provides accurate absolute position but requires physical infrastructure (anchor installation and surveying). Visual-inertial odometry (VIO) can achieve similar accuracy in textured environments without fixed infrastructure, at the cost of drift over time. A hybrid approach: VIO for relative motion, UWB for periodic drift correction, would be more deployable across environments.
 
 ### 15.3 APF vs. Sampling-Based Planning
 
@@ -681,7 +681,7 @@ This system is explicitly a research prototype. It demonstrates the viability of
 
 - Bhat, S. F., Birkl, R., Wofk, D., Wonka, P., & Müller, M. (2023). *ZoeDepth: Zero-shot transfer by combining relative and metric depth.* arXiv:2302.12288.
 - Eigen, D., Puhrsch, C., & Fergus, R. (2014). *Depth map prediction from a single image using a multi-scale deep network.* NeurIPS 2014.
-- Khatib, O. (1986). *Real-time obstacle avoidance for manipulators and mobile robots.* The International Journal of Robotics Research, 5(1), 90–98.
+- Khatib, O. (1986). *Real-time obstacle avoidance for manipulators and mobile robots.* The International Journal of Robotics Research, 5(1), 90-98.
 - Ranftl, R., Bochkovskiy, A., & Koltun, V. (2021). *Vision Transformers for Dense Prediction.* ICCV 2021. (DPT/MiDaS v3)
 - Ranftl, R., Lasinger, K., Hafner, D., Schindler, K., & Koltun, V. (2020). *Towards Robust Monocular Depth Estimation: Mixing Datasets for Zero-Shot Cross-Dataset Transfer.* TPAMI.
 - Nooploop. (2024). *LinkTrack User Manual.* https://www.nooploop.com/en/linktrack/

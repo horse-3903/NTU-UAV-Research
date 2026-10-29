@@ -35,7 +35,7 @@ The system was designed and tested in a single indoor lab space. The configured 
 
 Total flight volume: approximately $7.50 \times 5.00 \times 3.25 \approx 121$ m³.
 
-The 0.50 m inset from physical walls on each axis provides a safety buffer for UWB measurement noise and control lag. In practice, the drone operates primarily in the $z \in [-2.5, -1.5]$ m band (approximately 1.5–2.5 m altitude).
+The 0.50 m inset from physical walls on each axis provides a safety buffer for UWB measurement noise and control lag. In practice, the drone operates primarily in the $z \in [-2.5, -1.5]$ m band (approximately 1.5-2.5 m altitude).
 
 ### 1.2 Reference Positions
 
@@ -114,11 +114,11 @@ Anchor coordinates are surveyed relative to the UWB system origin and entered in
 
 In the experimental setup, raw UWB position noise was approximately:
 
-- Horizontal ($x, y$): ±3–8 cm RMS under good conditions
-- Vertical ($z$): ±5–15 cm RMS (vertical is generally noisier due to shallow anchor elevation angles)
-- Occasional jump errors of 0.2–0.5 m in the presence of dynamic occlusion
+- Horizontal ($x, y$): ±3-8 cm RMS under good conditions
+- Vertical ($z$): ±5-15 cm RMS (vertical is generally noisier due to shallow anchor elevation angles)
+- Occasional jump errors of 0.2-0.5 m in the presence of dynamic occlusion
 
-No filtering is applied to the raw position in the current implementation. The 100-sample running average used for depth anchoring (§6.4 of the technical report) reduces effective noise for that specific purpose to approximately ±1–2 cm, at the cost of a positional lag of approximately 1 second at 100 Hz.
+No filtering is applied to the raw position in the current implementation. The 100-sample running average used for depth anchoring (§6.4 of the technical report) reduces effective noise for that specific purpose to approximately ±1-2 cm, at the cost of a positional lag of approximately 1 second at 100 Hz.
 
 ---
 
@@ -140,7 +140,7 @@ The `calibrate/` directory contains 19 images. A good calibration for a fisheye-
 - Frames where the board fills different quadrants of the image
 - Frames at different distances (0.5 m to 2 m)
 
-Reprojection error below 1.0 pixel is generally acceptable; the Tello lens typically achieves 0.5–1.5 px with sufficient image diversity.
+Reprojection error below 1.0 pixel is generally acceptable; the Tello lens typically achieves 0.5-1.5 px with sufficient image diversity.
 
 ### 3.3 Calibration Data
 
@@ -172,7 +172,7 @@ If the camera is recalibrated (e.g. after firmware update or lens damage):
    ```
 
 3. Verify the output camera matrix looks reasonable for a ~82° FOV:
-   - $f_x, f_y$ should be approximately 900–1100 px (for 960×720 resolution)
+   - $f_x, f_y$ should be approximately 900-1100 px (for 960×720 resolution)
    - $c_x \approx 480$, $c_y \approx 360$
    - Distortion coefficients $k_1$ should be negative (barrel distortion)
 
@@ -197,7 +197,7 @@ ZoeDepth NK was selected because it produces metric (absolute) depth estimates d
 ZoeDepth performance on the Tello camera feed showed:
 
 **Well-estimated regions:**
-- Near-field objects (0.5–3 m) with clear texture
+- Near-field objects (0.5-3 m) with clear texture
 - Furniture with visible edges
 - People and large cylindrical objects
 
@@ -209,7 +209,7 @@ ZoeDepth performance on the Tello camera feed showed:
 
 ### 4.3 Depth Scale Consistency
 
-ZoeDepth is calibrated for the NYU and KITTI depth distributions. The Tello's lens geometry and sensor size differ from those datasets. In practice, the absolute depth values have approximately the right scale for indoor objects at 0.5–3 m, but may underestimate depth at longer ranges (>4 m) where the Tello footage approaches the training distribution boundary.
+ZoeDepth is calibrated for the NYU and KITTI depth distributions. The Tello's lens geometry and sensor size differ from those datasets. In practice, the absolute depth values have approximately the right scale for indoor objects at 0.5-3 m, but may underestimate depth at longer ranges (>4 m) where the Tello footage approaches the training distribution boundary.
 
 ### 4.4 Inference Timing
 
@@ -217,13 +217,13 @@ Approximate per-frame inference times (single forward pass, batch size 1, 960×7
 
 | Hardware | Approximate Time |
 |---|---|
-| CPU (Intel Core i7, 8-core) | 3–8 s |
-| GPU (NVIDIA RTX 3060) | 0.3–0.8 s |
-| GPU (NVIDIA RTX 4090) | 0.1–0.2 s |
+| CPU (Intel Core i7, 8-core) | 3-8 s |
+| GPU (NVIDIA RTX 3060) | 0.3-0.8 s |
+| GPU (NVIDIA RTX 4090) | 0.1-0.2 s |
 
 These are rough estimates; actual times vary with CPU/GPU load and memory bandwidth.
 
-The 250-frame inference interval at 24 fps equals approximately 10.4 s. This is comfortably above even the slowest CPU inference time, ensuring no depth cycle overlap. With a GPU, the interval could be reduced to 25–50 frames (1–2 s) without overlap risk.
+The 250-frame inference interval at 24 fps equals approximately 10.4 s. This is comfortably above even the slowest CPU inference time, ensuring no depth cycle overlap. With a GPU, the interval could be reduced to 25-50 frames (1-2 s) without overlap risk.
 
 ---
 
@@ -255,13 +255,13 @@ Selected: $\rho_0 = 0.5$ m.
 
 **Boundary influence distance $\rho_b$:**
 
-Same sensitivity as $\rho_0$. In the experimental space, 0.5 m gives approximately 4–5 cell-widths of active boundary near walls, which is sufficient to prevent boundary violations at $v_{\max} = 30$.
+Same sensitivity as $\rho_0$. In the experimental space, 0.5 m gives approximately 4-5 cell-widths of active boundary near walls, which is sufficient to prevent boundary violations at $v_{\max} = 30$.
 
 Selected: $\rho_b = 0.5$ m.
 
 ### 5.3 Velocity Clamping
 
-The maximum velocity command `max_val = 30` (of 100 scale) corresponds to approximately 0.5–1.0 m/s actual drone speed based on the Tello specification. This was chosen conservatively for a prototype system; higher values would reduce flight time but risk insufficient braking near obstacles.
+The maximum velocity command `max_val = 30` (of 100 scale) corresponds to approximately 0.5-1.0 m/s actual drone speed based on the Tello specification. This was chosen conservatively for a prototype system; higher values would reduce flight time but risk insufficient braking near obstacles.
 
 ### 5.4 Control Loop Rate
 
@@ -358,24 +358,24 @@ Follow the checklist in §10. Key steps:
 
 ### 7.2 Launch Sequence
 
-**Terminal 1 — UWB:**
+**Terminal 1: UWB:**
 ```bash
 bash cmd/uwb.sh
 ```
 Wait for `[nlink_parser]` topics to appear in `rostopic list`.
 
-**Terminal 2 — Verify UWB:**
+**Terminal 2: Verify UWB:**
 ```bash
 rostopic echo /nlink_linktrack_nodeframe1
 ```
 Confirm $x, y, z$ values are near the drone's known physical position. Ctrl+C when confirmed.
 
-**Terminal 3 — Main:**
+**Terminal 3: Main:**
 ```bash
 cd task && python main.py
 ```
 The drone will:
-1. Load ZoeDepth model (~20–60 s depending on hardware)
+1. Load ZoeDepth model (~20-60 s depending on hardware)
 2. Connect to drone
 3. Start video
 4. Take off
@@ -393,9 +393,9 @@ The drone will:
 ### 7.4 Post-Flight
 
 Log files are in `logs/log-<timestamp>/`:
-- `log-info.log` — full timestamped event log
-- `log-pos.log` — position trace (can be imported to Python for trajectory analysis)
-- `log-config.json` — flight configuration snapshot
+- `log-info.log`: full timestamped event log
+- `log-pos.log`: position trace (can be imported to Python for trajectory analysis)
+- `log-config.json`: flight configuration snapshot
 
 Images are in `img/<original|depth|annotated>/<timestamp>/`.
 Raw video is in `vid/raw/vid-<timestamp>.avi`.
@@ -425,8 +425,8 @@ Two reference trajectories are stored in `assets/`:
 
 | File | Description |
 |---|---|
-| `assets/trajectory_apf_raw.jpg` | APF only — 45 s run, erratic lateral deviations, ±0.5 m Z noise |
-| `assets/trajectory_apf_pid.jpg` | APF + PID — 25 s run, smooth sinusoidal Y path, stable Z at -2.1 m |
+| `assets/trajectory_apf_raw.jpg` | APF only: 45 s run, erratic lateral deviations, ±0.5 m Z noise |
+| `assets/trajectory_apf_pid.jpg` | APF + PID, 25 s run, smooth sinusoidal Y path, stable Z at -2.1 m |
 
 **Reading the trajectory plots:** The left panel shows X, Y, Z vs time independently. The right panel shows the full 3D scatter with colour-coded markers: yellow = takeoff, red = start (post-hover), blue = end position, green = configured target.
 
@@ -445,14 +445,14 @@ The following failure modes were observed or anticipated during development. Eac
 ---
 
 **Symptom:** Drone does not move after takeoff and depth model run.  
-**Cause:** `depth_model_run = False` — depth thread has not completed yet (likely still running ZoeDepth inference on CPU).  
+**Cause:** `depth_model_run = False`: depth thread has not completed yet (likely still running ZoeDepth inference on CPU).  
 **Action:** Wait. The `follow_path()` function returns immediately if `depth_model_run is False`. Check terminal for "Depth Model Running" message. If it never appears, check that `cur_frame_idx` is counting up (video stream is working).
 
 ---
 
 **Symptom:** Drone immediately lands with "Out of X bounds" message.  
 **Cause:** UWB position reading is incorrect at startup (multipath, anchor misconfiguration, or tag not fully acquired).  
-**Action:** Verify UWB anchor power and configuration. Run `rostopic echo` and confirm position is near the drone's physical location before launching `main.py`. The takeoff position is set to `cur_pos` at startup — if that position is wrong, bounds checks will trigger false positives.
+**Action:** Verify UWB anchor power and configuration. Run `rostopic echo` and confirm position is near the drone's physical location before launching `main.py`. The takeoff position is set to `cur_pos` at startup: if that position is wrong, bounds checks will trigger false positives.
 
 ---
 
@@ -488,7 +488,7 @@ The following failure modes were observed or anticipated during development. Eac
 
 **Symptom:** Pygame window is black (no video).  
 **Cause:** Video thread has not yet produced a frame, or `cur_frame` is still `None`.  
-**Action:** Wait 2–5 seconds after takeoff for the first frame. If it remains black, check that the video thread is running (no exception in the terminal).
+**Action:** Wait 2-5 seconds after takeoff for the first frame. If it remains black, check that the video thread is running (no exception in the terminal).
 
 ---
 
@@ -526,10 +526,10 @@ These parameters are not yet read from config files. Their locations for manual 
 ### 9.2 Config File Templates
 
 Reference config files with full documentation are provided in `configs/`:
-- `configs/drone.yaml` — connection and flight envelope
-- `configs/depth.yaml` — model and inference parameters
-- `configs/uwb.yaml` — ROS topic and coordinate frame
-- `configs/control.yaml` — APF and velocity parameters
+- `configs/drone.yaml`: connection and flight envelope
+- `configs/depth.yaml`: model and inference parameters
+- `configs/uwb.yaml`: ROS topic and coordinate frame
+- `configs/control.yaml`: APF and velocity parameters
 
 These are not currently loaded at runtime; they serve as documentation of the parameter space and templates for a future config-driven architecture.
 
